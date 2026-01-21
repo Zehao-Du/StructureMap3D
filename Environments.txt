@@ -1,0 +1,25 @@
+pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
+
+# gcc, g++ in conda
+conda install -c conda-forge gcc_linux-64=11 gxx_linux-64=11 sysroot_linux-64
+export CC=$(which x86_64-conda-linux-gnu-gcc)
+export CXX=$(which x86_64-conda-linux-gnu-g++)
+export CUDAHOSTCXX=$CXX
+
+pip install git+https://github.com/facebookresearch/pytorch3d.git@stable --no-build-isolation
+pip install open3d
+
+# Convert to System
+export CC=$(which gcc)
+export CXX=$(which g++)
+export CUDAHOSTCXX=$CXX
+
+pip install git+https://github.com/Farama-Foundation/Metaworld.git@master#egg=metaworld
+
+Special Case: **No module named torch** : adding --no-build-isolation
+
+
+ln -s $CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
+ln -s $CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++ $CONDA_PREFIX/bin/g++
+rm $CONDA_PREFIX/bin/g++
+rm $CONDA_PREFIX/bin/gcc
