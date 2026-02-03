@@ -4,14 +4,19 @@ import torch.nn.functional as F
 from torch_scatter import scatter_max, scatter_mean
 
 MAP_NODE_VOCAB = {
+    "basketball": 4,
     "bin-picking": 5,
     "box-close": 6,
     "hand-insert": 2,
+    "lever-pull": 4,
     "peg-insert-side": 3,
+    "peg-unplug-side": 3,
     "pick-out-of-hole": 3,
     "pick-place-wall": 3,
     "push-wall": 3,
     "shelf-place": 4,
+    "soccer": 5,
+    "stick-pull": 4,
 }
 
 # -----------------------------------------------------------------------------
