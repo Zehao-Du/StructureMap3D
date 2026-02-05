@@ -35,7 +35,11 @@ class Logger:
 
     @staticmethod
     def print_seperator(char="-", color="cyan"):
-        cprint(char * os.get_terminal_size().columns, color)
+        try:
+            width = os.get_terminal_size().columns
+        except OSError:
+            width = 80  # fallback when not a TTY (e.g. nohup, IDE, conda run)
+        cprint(char * width, color)
         
 class WandBLogger:
     def __init__(self, config, hyperparameters=None):

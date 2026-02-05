@@ -27,6 +27,7 @@ Pytorch Geometric
 
 ```bash
 pip install torch_geometric==2.7.0
+pip install torch_scatter -f https://data.pyg.org/whl/torch-2.4.0+cu118.html
 ```
 
 Finally, install LIFT3D following <https://github.com/PKU-HMI-Lab/LIFT3D> exclude simulation environment

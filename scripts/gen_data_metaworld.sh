@@ -7,56 +7,16 @@ export MUJOCO_GL=egl
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 TASKS=(
-    "assembly"
     "basketball"
-    "bin-picking"
-    "box-close"
-    "button-press-topdown"
-    "button-press-topdown-wall"
-    "button-press"
-    "button-press-wall"
-    "coffee-button"
-    "coffee-pull"
-    "coffee-push"
-    "dial-turn"
-    "disassemble"
-    "door-close"
-    "door-lock"
-    "door-open"
-    "door-unlock"
-    "drawer-close"
-    "drawer-open"
-    "faucet-close"
-    "faucet-open"
-    "hammer"
-    "hand-insert"
-    "handle-press-side"
-    "handle-press"
-    "handle-pull-side"
-    "handle-pull"
+    
+    
     "lever-pull"
-    "peg-insert-side"
+    
     "peg-unplug-side"
-    "pick-out-of-hole"
-    "pick-place"
-    "pick-place-wall"
-    "plate-slide-back-side"
-    "plate-slide-back"
-    "plate-slide-side"
-    "plate-slide"
-    "push-back"
-    "push"
-    "push-wall"
-    "reach"
-    "reach-wall"
-    "shelf-place"
+    
     "soccer"
     "stick-pull"
-    "stick-push"
-    "sweep-into"
-    "sweep"
-    "window-close"
-    "window-open"
+    
 )
 
 CAMERAS=(
