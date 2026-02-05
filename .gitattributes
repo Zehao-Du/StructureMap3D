@@ -1,0 +1,2 @@
+lift3d_clip_base.pth filter=lfs diff=lfs merge=lfs -text
+ViT-B-32.pt filter=lfs diff=lfs merge=lfs -text
