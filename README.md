@@ -23,10 +23,11 @@ pip install git+https://github.com/facebookresearch/pytorch3d.git@stable --no-bu
 pip install open3d
 ```
 
-Pytorch Geometric
+Pytorch Geometric, pytorch 2.7, cuda 12.8 for example.
 
 ```bash
 pip install torch_geometric==2.7.0
+pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
 
 Finally, install LIFT3D following <https://github.com/PKU-HMI-Lab/LIFT3D> exclude simulation environment
