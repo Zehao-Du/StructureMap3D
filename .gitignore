@@ -212,4 +212,9 @@ cython_debug/
 # Marimo
 marimo/_static/
 marimo/_lsp/
-__marimo__/
+
+# LIFT3D checkpoints (download via scripts/download_lift3d_ckpt.sh)
+lift3d_clip_base.pth
+ViT-B-32.pt
+**/lift3d/models/lift3d/ckpt/*.pth
+**/lift3d/models/lift3d/ckpt/*.pt
