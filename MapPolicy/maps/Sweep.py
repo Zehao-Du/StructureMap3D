@@ -32,7 +32,7 @@ class StructureMap_Sweep(StructureGraph):
             sizes = self._preprocess_parameters(sizes)
             
         Objects = []
-        Objects.append(Block(sizes[:, 6:9], positions[:, 6:9], rotations[:, 2*6:3*6]))
+        Objects.append(Block(sizes[:, 0:3], positions[:, 0:3], rotations[:, 0:1*6]))
         
         Nodes = []
         Edges = []

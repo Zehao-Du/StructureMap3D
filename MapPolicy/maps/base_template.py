@@ -282,68 +282,53 @@ class StructureGraph:
             aff_idx = torch.empty((0,), dtype=torch.long, device=self.device)
             
         # ==========================================
-        # 2. 处理 Edge Data (Broadcasting)
+        # 2. 处理 Edge Data (处理空边情况)
         # ==========================================
+        if self.M == 0:  # 没有边的情况
+            # 创建空的边索引 [2, 0]
+            final_edge_index = torch.empty((2, 0), dtype=torch.long, device=self.device)
+            
+            # 创建空的边特征张量
+            edge_type = torch.zeros((0, 1), device=self.device)
+            edge_param = torch.zeros((0, 3), device=self.device)
+            edge_anchor = torch.zeros((0, 24), device=self.device)
+            edge_pose = torch.zeros((0, 9), device=self.device)
+        else:
+            base_src = []
+            base_dst = []
+            raw_types = []
+            raw_params = []
+            raw_anchors = []
+            raw_poses = []
+            
+            for edge in self.Edge:
+                base_src.append(edge.Node_idx[0])
+                base_dst.append(edge.Node_idx[1])
                 
-        # 收集单个 Graph 的拓扑信息
-        base_src = []
-        base_dst = []
-        
-        # 收集边特征 (假设特征已经在 init 中扩展为 [B, ...])
-        # 我们需要按照 edge 的顺序将它们收集起来
-        # 最终目标: [B, M, Feat] -> [B*M, Feat]
-        
-        # 临时容器：[M, B, Feat] (M edges, each has batch)
-        raw_types = []
-        raw_params = []
-        raw_anchors = []
-        raw_poses = []
-
-        for edge in self.Edge:
-            base_src.append(edge.Node_idx[0])
-            base_dst.append(edge.Node_idx[1])
-            
-            # Type [B, 1]
-            t_idx = TYPE_VOCAB.get(edge.C_Type, 2)
-            raw_types.append(torch.full((self.B, 1), t_idx, device=self.device))
-            
-            # Param [B, 3]
-            # 假设 Parameter 已经是 Tensor，如果不是需处理
-            if isinstance(edge.Parameter, torch.Tensor):
-                raw_params.append(edge.Parameter)
-            else:
-                raw_params.append(torch.zeros((self.B, 3), device=self.device))
+                t_idx = TYPE_VOCAB.get(edge.C_Type, 2)
+                raw_types.append(torch.full((self.B, 1), t_idx, device=self.device))
                 
-            # Anchor [B, 24]
-            raw_anchors.append(self._Flatten_Anchor(edge.Anchor))
+                if isinstance(edge.Parameter, torch.Tensor):
+                    raw_params.append(edge.Parameter)
+                else:
+                    raw_params.append(torch.zeros((self.B, 3), device=self.device))
+                    
+                raw_anchors.append(self._Flatten_Anchor(edge.Anchor))
+                raw_poses.append(edge.Relative_pose)
             
-            # Pose [B, 6]
-            raw_poses.append(edge.Relative_pose)
-
-        # 构建基础边索引 [2, M]
-        base_edge_index = torch.tensor([base_src, base_dst], dtype=torch.long, device=self.device)
-        
-        # 广播生成 Batched Edge Index
-        # [1, 2, M] + [B, 1, 1] (offsets) -> [B, 2, M]
-        offsets = (torch.arange(self.B, device=self.device) * self.N).view(self.B, 1, 1)
-        batched_edges = base_edge_index.unsqueeze(0) + offsets
-        
-        # 展平 -> [2, B*M]
-        # permute(1, 0, 2) -> [2, B, M] -> reshape -> [2, B*M]
-        final_edge_index = batched_edges.permute(1, 0, 2).reshape(2, -1)
-        
-        # 处理特征展平
-        # Raw lists are [M, B, D]. We want [B, M, D] -> [B*M, D]
-        # stack(dim=1) -> [B, M, D]
-        
-        # Type
-        edge_type = torch.stack(raw_types, dim=1).reshape(self.B * self.M, -1)
-        # Param
-        edge_param = torch.stack(raw_params, dim=1).reshape(self.B * self.M, -1)
-        # Anchor
-        edge_anchor = torch.stack(raw_anchors, dim=1).reshape(self.B * self.M, -1)
-        # Pose
-        edge_pose = torch.stack(raw_poses, dim=1).reshape(self.B * self.M, -1)
+            # 构建基础边索引
+            base_edge_index = torch.tensor([base_src, base_dst], dtype=torch.long, device=self.device)
+            
+            # 广播生成 Batched Edge Index
+            offsets = (torch.arange(self.B, device=self.device) * self.N).view(self.B, 1, 1)
+            batched_edges = base_edge_index.unsqueeze(0) + offsets
+            final_edge_index = batched_edges.permute(1, 0, 2).reshape(2, -1)
+            
+            # 处理特征展平
+            edge_type = torch.stack(raw_types, dim=1).reshape(self.B * self.M, -1)
+            edge_param = torch.stack(raw_params, dim=1).reshape(self.B * self.M, -1)
+            edge_anchor = torch.stack(raw_anchors, dim=1).reshape(self.B * self.M, -1)
+            edge_pose = torch.stack(raw_poses, dim=1).reshape(self.B * self.M, -1)
         
         
         # # ==========================================

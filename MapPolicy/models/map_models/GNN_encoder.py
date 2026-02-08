@@ -2,16 +2,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_max, scatter_mean
+from MapPolicy.helpers.pytorch import safe_normalize
 
 MAP_NODE_VOCAB = {
     "bin-picking": 5,
     "box-close": 6,
+    "coffee-pull": 4,
+    "coffee-push": 4,
     "hand-insert": 2,
+    "handle-pull": 3,
+    "handle-pull-side": 3,
     "peg-insert-side": 3,
     "pick-out-of-hole": 3,
+    "pick-place": 1,
     "pick-place-wall": 3,
+    "push": 1,
+    "push-back": 1,
     "push-wall": 3,
+    "reach-wall": 2,
     "shelf-place": 4,
+    "sweep": 1,
+    "sweep-into": 3,
 }
 
 # -----------------------------------------------------------------------------
@@ -255,24 +266,28 @@ class RoboGraphormer(nn.Module):
         # data.edge_index 是 [2, B*M]
         # 我们需要计算每个 edge 在 Dense Tensor 中的 batch 索引
         
-        src, dst = data.edge_index
-        # 计算 Batch Index: src // N
-        batch_idx = src // self.N 
-        # 计算 Local Node Index: src % N
-        local_src = src % self.N
-        local_dst = dst % self.N
-        
-        # 赋值
-        e_dense[batch_idx, local_src, local_dst] = e_sparse
-        # 双向
-        e_dense = e_dense + e_dense.transpose(1, 2)
+        if data.edge_index.size(1) > 0:  # 如果有边
+            src, dst = data.edge_index
+            # 计算 Batch Index: src // N
+            batch_idx = src // self.N 
+            # 计算 Local Node Index: src % N
+            local_src = src % self.N
+            local_dst = dst % self.N
+            
+            # 赋值
+            e_dense[batch_idx, local_src, local_dst] = e_sparse
+            # 双向
+            e_dense = e_dense + e_dense.transpose(1, 2)
         
         return h_dense, e_dense
 
     def forward(self, data):
         # 1. Encode Features
         h_sparse = self.node_encoder(data) 
-        e_sparse = self.edge_encoder(data) 
+        if data.edge_index.size(1) > 0:  # 如果有边
+            e_sparse = self.edge_encoder(data)
+        else:
+            e_sparse = torch.zeros(0, self.hidden_dim, device=h_sparse.device)
         
         # 2. Convert to Dense for Transformer
         h, e = self.to_dense(h_sparse, e_sparse, data)
@@ -286,24 +301,27 @@ class RoboGraphormer(nn.Module):
         # ==========================================================
         loss_dict = {}
         if self.training:
-            # 4.1 生成 Predicted Anchors (基于最终的 Edge Embedding)
-            # e shape: [B, N, N, D] -> preds shape: [B, N, N, 24]
+            # 4.1 生成 Predicted Anchors
             dense_preds = self.math_head(e)
             
-            # 4.2 提取有效边的预测值 (Mapping Dense back to Sparse)
-            # 我们只需要计算真实存在的边的 Loss，忽略 Padding 或 Free 边
-            src, dst = data.edge_index
-            batch_idx = src // self.N
-            local_src = src % self.N
-            local_dst = dst % self.N
-            
-            # [Total_Edges, 24]
-            valid_preds = dense_preds[batch_idx, local_src, local_dst]
-            
-            # 4.3 计算具体的几何约束 Loss
-            math_loss, ortho_loss = self.compute_math_loss(valid_preds, data)
-            loss_dict['math_loss'] = math_loss
-            loss_dict['ortho_loss'] = ortho_loss
+            # 检查是否有边
+            if data.edge_index.size(1) > 0:
+                src, dst = data.edge_index
+                batch_idx = src // self.N
+                local_src = src % self.N
+                local_dst = dst % self.N
+                
+                # [Total_Edges, 24]
+                valid_preds = dense_preds[batch_idx, local_src, local_dst]
+                
+                # 4.3 计算具体的几何约束 Loss
+                math_loss, ortho_loss = self.compute_math_loss(valid_preds, data)
+                loss_dict['math_loss'] = math_loss
+                loss_dict['ortho_loss'] = ortho_loss
+            else:
+                # 没有边时返回0损失
+                loss_dict['math_loss'] = torch.tensor(0.0, device=h_sparse.device)
+                loss_dict['ortho_loss'] = torch.tensor(0.0, device=h_sparse.device)
 
         # 5. Readout (Aggregation)
         score = self.gate_nn(torch.tanh(self.readout_proj(h)))
@@ -398,6 +416,7 @@ class RoboGraphormer(nn.Module):
             loss_par = torch.mean(torch.norm(torch.cross(d_i, d_j, dim=-1), dim=-1))
             
             # 2. Co-linear: Point j must be on axis i -> || (p_j - p_i) x d_i || = 0
+            delta = params[mask, 0]
             loss_col = torch.mean(torch.norm(torch.cross(diff, d_i, dim=-1), dim=-1))
             
             constraint_loss += (loss_par + loss_col)

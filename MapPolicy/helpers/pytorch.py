@@ -122,3 +122,6 @@ def log_params_to_file(model, filename, requires_grad):
     Logger.log_info(
         f"{'Trainable' if requires_grad else 'Freezed'} parameters saved to {filename}"
     )
+
+def safe_normalize(v, eps=1e-8):
+    return v / (v.norm(dim=-1, keepdim=True) + eps)
