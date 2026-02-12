@@ -13,6 +13,7 @@ sys.path.append(
 from MapPolicy.maps.Basketball import StructureMap_Basketball
 from MapPolicy.maps.BinPicking import StructureMap_BinPicking
 from MapPolicy.maps.BoxClose import StructureMap_BoxClose
+from MapPolicy.maps.CloseBox_RLBench import StructureMap_CloseBox_RLBench
 from MapPolicy.maps.PegInsertSide import StructureMap_PegInsertSide
 from MapPolicy.maps.PickOutOfHole import StructureMap_PickOutOfHole
 from MapPolicy.maps.PickPlaceWall import StructureMap_PickPlaceWall
@@ -34,6 +35,7 @@ MAP_DIM_VOCAB = {
     "basketball": [8, 20, 44],
     "bin-picking": [19, 34, 64],
     "box-close": [20, 38, 74],
+    "close_box": [20, 38, 74],  # RLBench close_box，与 box-close 相同结构，重用 box-close 模板
     "hand-insert": [6, 12, 24],
     "lever-pull": [8, 20, 44],
     "peg-insert-side": [8, 17, 35],
@@ -45,10 +47,12 @@ MAP_DIM_VOCAB = {
     "soccer": [13, 28, 58],
     "stick-pull": [11, 23, 47],
 }
-MAP_CLASS_VOCAB = { 
+MAP_CLASS_VOCAB = {
     "basketball": StructureMap_Basketball,
     "bin-picking": StructureMap_BinPicking,
     "box-close": StructureMap_BoxClose,
+    # RLBench close_box：使用独立的 CloseBox_RLBench 模板，方便后续单独封装/修改
+    "close_box": StructureMap_CloseBox_RLBench,
     "hand-insert": StructureMap_HandInsert,
     "lever-pull": StructureMap_LeverPull,
     "peg-insert-side": StructureMap_PegInsertSide,

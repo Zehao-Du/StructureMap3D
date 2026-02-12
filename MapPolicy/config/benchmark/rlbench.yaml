@@ -1,0 +1,12 @@
+name: RLBench
+
+rotation_representation: quaternion  # quaternion, euler
+
+dataset_instantiate_config:
+  _target_: MapPolicy.dataset.rlbench_dataset.RLBenchDataset
+
+evaluator_instantiate_config:
+  _target_: MapPolicy.envs.evaluator.HeadlessEvaluator
+
+loss_func:
+  _target_: lift3d.loss.eepose.compute_loss_cosine_similarity_quaternion

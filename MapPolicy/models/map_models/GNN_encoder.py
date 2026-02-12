@@ -7,6 +7,7 @@ MAP_NODE_VOCAB = {
     "basketball": 4,
     "bin-picking": 5,
     "box-close": 6,
+    "close_box": 6,  # RLBench close_box，与 box-close 相同结构
     "hand-insert": 2,
     "lever-pull": 4,
     "peg-insert-side": 3,

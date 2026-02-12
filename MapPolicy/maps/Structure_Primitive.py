@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils import normalize, rotate_6D
+from utils_torch import normalize, rotate_6D
 from base_template import StructureNode
 
 import open3d as o3d
