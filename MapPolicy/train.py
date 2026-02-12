@@ -4,7 +4,7 @@ import os
 import pathlib
 import sys
 
-# Add LIFT3D root to path so 'lift3d' package can be found (used by Lift3d_Map_GNN)
+# Add LIFT3D root to path so 'lift3d' package can be found (used by Lift3d_Map_GNN
 _lift3d_root = pathlib.Path(__file__).resolve().parent / "models" / "LIFT3D"
 if _lift3d_root.exists() and str(_lift3d_root) not in sys.path:
     sys.path.insert(0, str(_lift3d_root))
