@@ -8,9 +8,9 @@ export OPENBLAS_NUM_THREADS=${NUMBER_THREAD}
 export VECLIB_MAXIMUM_THREADS=${NUMBER_THREAD}
 export NUMEXPR_NUM_THREADS=${NUMBER_THREAD}
 
-PHYSICAL_DEVICE_ID=6
+PHYSICAL_DEVICE_ID=7
 BATCH_SIZE=256
-NUM_SKIP_EPOCHS=100
+NUM_SKIP_EPOCHS=0
 NUM_EPOCHS=300
 
 # LAMBDA_PHYSICALS=(0.1 0.5 1 2 5 10 20)
@@ -24,9 +24,13 @@ AGENTS=(
 
 # 定义要运行的所有任务列表
 TASKS=(
+    # "coffee-pull"
+    # "coffee-push"
+    # "handle-pull"
+    # "handle-pull-side"
+    "sweep"
+    "sweep-into"
     "pick-out-of-hole"
-    "pick-place-wall"
-    "push-wall"
 )
 
 CAMERA_NAMES=(

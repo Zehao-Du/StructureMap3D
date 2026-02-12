@@ -295,3 +295,68 @@ class SingleFrame_Lift3d_GNN(Actor):
             return actions, loss_map, loss_math
         
         return actions
+    
+class SingleFrame_Lift3d_PointNet_GNN(Actor):
+    def __init__(
+        self,
+        point_cloud_encoder_visual: nn.Module,
+        point_cloud_encoder_map: nn.Module,
+        map_constructor,
+        map_encoder: nn.Module,
+        robot_state_dim: int,
+        action_dim: int,
+        policy_hidden_dims: List[int],
+        policy_head_init_method: str,
+        loss_map_construction,
+    ):
+        super().__init__()
+        self.point_cloud_encoder_visual = point_cloud_encoder_visual
+        self.point_cloud_encoder_map = point_cloud_encoder_map
+        
+        if isinstance(map_constructor, partial) or callable(map_constructor):
+            self.map_constructor = map_constructor(point_cloud_encoder=self.point_cloud_encoder_map)
+        else:
+            self.map_constructor = map_constructor
+
+        self.map_encoder = map_encoder
+        self.robot_state_dim = robot_state_dim
+        self.robot_state_encoder = nn.Linear(
+            robot_state_dim, point_cloud_encoder_visual.feature_dim
+        )
+        self.policy_head = MLP(
+            input_dim=2 * point_cloud_encoder_visual.feature_dim + map_encoder.feature_dim,
+            hidden_dims=policy_hidden_dims,
+            output_dim=action_dim,
+            init_method=policy_head_init_method,
+        )
+        self.loss_map_construction = loss_map_construction
+    def forward(self, images, point_clouds, point_cloud_no_robot, robot_states, texts):
+        # * Notice: normalize the input point cloud
+        point_clouds = PointCloud.normalize(point_clouds)
+        point_cloud_no_robot = PointCloud.normalize(point_cloud_no_robot)
+        
+        # Visual Encode
+        point_cloud_emb = self.point_cloud_encoder_visual(point_clouds)
+        
+        # Map Encode
+        structure_map = self.map_constructor(point_cloud_no_robot)
+        map_emb, math_loss = self.map_encoder(structure_map.data)
+        
+        # Robot State Encode
+        robot_state_emb = self.robot_state_encoder(robot_states)
+        
+        # Fusion
+        emb = torch.cat([point_cloud_emb, map_emb, robot_state_emb], dim=1)
+        
+        # Policy (TODO: isolate policy)
+        actions = self.policy_head(emb)
+        
+        if self.training:
+            # Map Loss
+            point_cloud_map = structure_map.complete_point_cloud()
+            loss_map = self.loss_map_construction(point_cloud_no_robot, point_cloud_map)
+            # Math Loss
+            loss_math = math_loss['math_loss'] + math_loss['ortho_loss']
+            return actions, loss_map, loss_math
+        
+        return actions

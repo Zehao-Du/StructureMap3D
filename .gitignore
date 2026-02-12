@@ -5,6 +5,10 @@ Third-Party/
 WANDB_LOGS/
 WANDB_LOGS.tar
 MUJOCO_LOG.TXT
+scripts/lambda_*
+scripts/map_*
+scripts/train_*
+upload.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

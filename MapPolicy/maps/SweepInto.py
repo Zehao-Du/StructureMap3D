@@ -49,8 +49,8 @@ class StructureMap_SweepInto(StructureGraph):
     def __init__(self, sizes, positions, rotations, clip_model, preprocess=False):
         """        
         :param sizes: [B, 9]
-        :param positions: [B, 9]
-        :param rotations: [B, 3*6]
+        :param positions: [B, 9] -- 18
+        :param rotations: [B, 3*6] -- 36
         Total: [B, 36], Node:3
         """
         if preprocess:

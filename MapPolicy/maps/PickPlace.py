@@ -24,8 +24,8 @@ class StructureMap_PickPlace(StructureGraph):
     def __init__(self, sizes, positions, rotations, clip_model, preprocess=False):
         """        
         :param sizes: [B, 3]
-        :param positions: [B, 3]
-        :param rotations: [B, 1*6]
+        :param positions: [B, 3] -- 6
+        :param rotations: [B, 1*6] -- 12
         Total: [B, 12], Node: 1
         """
         if preprocess:
