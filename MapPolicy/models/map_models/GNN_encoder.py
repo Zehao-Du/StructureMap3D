@@ -423,6 +423,7 @@ class RoboGraphormer(nn.Module):
             loss_par = torch.mean(torch.norm(torch.cross(d_i, d_j, dim=-1), dim=-1))
             
             # 2. Co-linear: Point j must be on axis i -> || (p_j - p_i) x d_i || = 0
+            delta = params[mask, 0]
             loss_col = torch.mean(torch.norm(torch.cross(diff, d_i, dim=-1), dim=-1))
             
             constraint_loss += (loss_par + loss_col)
