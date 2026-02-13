@@ -1,34 +1,4 @@
 import torch
-
-# def smart_loss_func(preds, actions):
-#     """
-#     preds: 可能是 Tensor (action), 
-#            也可能是 Tuple (action, aux_loss1, aux_loss2)
-#            也可能是 Dict {"action": ..., "aux_loss": ...}
-#     """
-#     # 情况 A: 模型返回的是 Tuple (action, loss1, loss2...)
-#     if isinstance(preds, (tuple, list)):
-#         pred_action = preds[0]
-#         # 计算主任务 Loss (比如 MSE)
-#         main_loss = torch.nn.functional.mse_loss(pred_action, actions)
-        
-#         # 提取模型内部传出来的辅助 Loss (假设模型已经计算好了)
-#         aux_loss_1 = preds[1]
-#         aux_loss_2 = preds[2] if len(preds) > 2 else 0.0
-        
-#         total_loss = main_loss + aux_loss_1 + aux_loss_2
-        
-#         return total_loss, {
-#             "total_loss": total_loss.item(),
-#             "main_loss": main_loss.item(),
-#             "aux_loss_1": aux_loss_1.item() if torch.is_tensor(aux_loss_1) else aux_loss_1,
-#             "aux_loss_2": aux_loss_2.item() if torch.is_tensor(aux_loss_2) else aux_loss_2,
-#         }
-
-#     # 情况 B: 模型只返回了单一 Action Tensor
-#     else:
-#         main_loss = torch.nn.functional.mse_loss(preds, actions)
-#         return main_loss
     
 def smart_loss_func(preds, actions, lambda_map=1.0, lambda_physical=1.0):
     """

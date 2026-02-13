@@ -23,3 +23,24 @@ ln -s $CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc $CONDA_PREFIX/bin/gcc
 ln -s $CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++ $CONDA_PREFIX/bin/g++
 rm $CONDA_PREFIX/bin/g++
 rm $CONDA_PREFIX/bin/gcc
+
+
+
+
+
+
+pip install . --no-build-isolation
+cd lift3d/models/point_next
+cd openpoints/cpp/pointnet2_batch
+pip install . --no-build-isolation
+cd ../subsampling
+pip install . --no-build-isolation
+cd ../pointops
+pip install . --no-build-isolation
+cd ../chamfer_dist
+pip install . --no-build-isolation
+cd ../emd
+pip install . --no-build-isolation
+cd ../../../../../..
+
+xvfb-run -a
