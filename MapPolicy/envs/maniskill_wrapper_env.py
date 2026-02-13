@@ -283,12 +283,6 @@ class ManiSkillEnv(gymnasium.Env):
             keep_mask = valid_mask
 
         point_cloud = full[keep_mask]
-        filtered_count = int(point_cloud.shape[0])
-        kept_labels = np.unique(seg[keep_mask]).tolist()
-        print(
-            f"[DEBUG][no_robot] pre-sampling raw_valid_points={raw_valid_count}, filtered_points={filtered_count}"
-        )
-        print(f"[DEBUG][no_robot] kept segmentation labels={kept_labels}")
         point_cloud = PointCloud.point_cloud_sampling(
             point_cloud, self.num_points, self.point_sample_method
         )
@@ -605,44 +599,35 @@ if __name__ == "__main__":
         except Exception as exc:
             log_stage(f"[STAGE-4] skip rgb save due to error: {exc}")
 
-        # 无头渲染两种点云并存 PNG。
-        import matplotlib
-
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        def _save_point_cloud_png(np_pc: np.ndarray, out_path: pathlib.Path, title: str):
-            xyz = np_pc[:, :3]
+        def _save_point_cloud_ply(np_pc: np.ndarray, out_path: pathlib.Path):
+            xyz = np_pc[:, :3].astype(np.float32)
             rgb_local = np_pc[:, 3:6].astype(np.float32)
-            if rgb_local.size > 0 and rgb_local.max() > 1.01:
-                rgb_local = rgb_local / 255.0
-            rgb_local = np.clip(rgb_local, 0.0, 1.0)
+            if rgb_local.size > 0 and rgb_local.max() <= 1.01:
+                rgb_local = rgb_local * 255.0
+            rgb_local = np.clip(rgb_local, 0.0, 255.0).astype(np.uint8)
 
-            fig = plt.figure(figsize=(8, 8), dpi=140)
-            ax = fig.add_subplot(111, projection="3d")
-            ax.scatter(
-                xyz[:, 0],
-                xyz[:, 1],
-                xyz[:, 2],
-                c=rgb_local,
-                s=1,
-                marker=".",
-                linewidths=0,
-            )
-            ax.set_title(title)
-            ax.set_xlabel("x")
-            ax.set_ylabel("y")
-            ax.set_zlabel("z")
-            fig.tight_layout()
-            fig.savefig(out_path)
-            plt.close(fig)
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write("ply\n")
+                f.write("format ascii 1.0\n")
+                f.write(f"element vertex {xyz.shape[0]}\n")
+                f.write("property float x\n")
+                f.write("property float y\n")
+                f.write("property float z\n")
+                f.write("property uchar red\n")
+                f.write("property uchar green\n")
+                f.write("property uchar blue\n")
+                f.write("end_header\n")
+                for i in range(xyz.shape[0]):
+                    x, y, z = xyz[i]
+                    r, g, b = rgb_local[i]
+                    f.write(f"{x} {y} {z} {int(r)} {int(g)} {int(b)}\n")
 
-        with_robot_png = save_dir / "debug_pc_WITH_robot.png"
-        no_robot_png = save_dir / "debug_pc_NO_robot.png"
-        _save_point_cloud_png(pc_with_robot, with_robot_png, "Point Cloud (With Robot)")
-        _save_point_cloud_png(pc_no_robot, no_robot_png, "Point Cloud (No Robot)")
-        log_stage(f"[STAGE-4] saved point cloud png: {with_robot_png}")
-        log_stage(f"[STAGE-4] saved point cloud png: {no_robot_png}")
+        with_robot_ply = save_dir / "debug_pc_WITH_robot.ply"
+        no_robot_ply = save_dir / "debug_pc_NO_robot.ply"
+        _save_point_cloud_ply(pc_with_robot, with_robot_ply)
+        _save_point_cloud_ply(pc_no_robot, no_robot_ply)
+        log_stage(f"[STAGE-4] saved point cloud ply: {with_robot_ply}")
+        log_stage(f"[STAGE-4] saved point cloud ply: {no_robot_ply}")
 
         log_stage(f"[STAGE-4] rgb shape={rgb.shape}, dtype={rgb.dtype}")
         log_stage(f"[STAGE-4] point_cloud shape={pc_with_robot.shape}, dtype={pc_with_robot.dtype}")
