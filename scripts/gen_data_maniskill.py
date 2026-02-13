@@ -34,8 +34,6 @@ if _project_root not in sys.path:
 from MapPolicy.dataset.metaworld_dataset import MetaWorldDataset
 from MapPolicy.envs.maniskill_wrapper_env import ManiSkillEnv
 from MapPolicy.helpers.Common import (
-    save_point_cloud_ply,
-    save_rgb_image,
     save_video_imageio,
 )
 from MapPolicy.helpers.Logger import Logger
@@ -173,32 +171,13 @@ def main(args):
         / args.task_id
         / args.camera_name
     )
-    image_dir = (
-        pathlib.Path(args.save_dir)
-        / "visualized_data"
-        / "images"
-        / args.task_id
-        / args.camera_name
-    )
-    point_cloud_dir = (
-        pathlib.Path(args.save_dir)
-        / "visualized_data"
-        / "point_clouds"
-        / args.task_id
-        / args.camera_name
-    )
-    point_cloud_no_robot_dir = (
-        pathlib.Path(args.save_dir)
-        / "visualized_data"
-        / "point_clouds_no_robot"
-        / args.task_id
-        / args.camera_name
-    )
-
     video_dir.mkdir(parents=True, exist_ok=True)
-    image_dir.mkdir(parents=True, exist_ok=True)
-    point_cloud_dir.mkdir(parents=True, exist_ok=True)
-    point_cloud_no_robot_dir.mkdir(parents=True, exist_ok=True)
+
+    mp_control_mode = "pd_joint_pos"
+    if args.control_mode != mp_control_mode:
+        Logger.log_info(
+            f"Motion-planning collection overrides control mode from {args.control_mode} to {mp_control_mode} for action-dimension compatibility."
+        )
 
     env = ManiSkillEnv(
         task_id=args.task_id,
@@ -206,7 +185,7 @@ def main(args):
         image_size=args.image_size,
         camera_name=args.camera_name,
         obs_mode=args.obs_mode,
-        control_mode=args.control_mode,
+        control_mode=mp_control_mode,
         num_points=args.num_points,
         render_mode=None,
         num_envs=1,
@@ -331,9 +310,9 @@ def main(args):
                 scene_retry_count = 0
             continue
 
-        if (not ep_success) or (ep_success_times < args.min_success_steps):
+        if not ep_success:
             cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} failed with reward {ep_reward} and success times {ep_success_times}",
+                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} failed with reward {ep_reward} (success_once=False)",
                 "red",
             )
             scene_retry_count += 1
@@ -351,26 +330,11 @@ def main(args):
         if args.quiet:
             process_bar.update(1)
 
-        # save visualized data (first frame + full video)
+        # save visualized data (full video only)
         sample_video_array = np.stack(img_arrays_sub, axis=0)
         save_video_imageio(
             sample_video_array,
             video_dir / f"episode_{episode_idx}.mp4",
-            quiet=args.quiet,
-        )
-        save_rgb_image(
-            img_arrays_sub[0],
-            image_dir / f"episode_{episode_idx}_rgb.png",
-            quiet=args.quiet,
-        )
-        save_point_cloud_ply(
-            point_cloud_arrays_sub[0],
-            point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
-            quiet=args.quiet,
-        )
-        save_point_cloud_ply(
-            point_cloud_no_robot_arrays_sub[0],
-            point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
             quiet=args.quiet,
         )
 
@@ -533,7 +497,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--text", type=str, default=None)
-    parser.add_argument("--min-success-steps", type=int, default=5)
     parser.add_argument("--max-consecutive-failures", type=int, default=5)
     parser.add_argument("--quiet", action="store_true")
 

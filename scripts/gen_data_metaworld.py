@@ -376,7 +376,7 @@ if __name__ == "__main__":
     parser.add_argument("--camera-name", type=str, default="corner")
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--num-episodes", type=int, default=30)
-    parser.add_argument("--episode-length", type=int, default=200)
+    parser.add_argument("--episode-length", type=int, default=100)
     parser.add_argument(
         "--save-dir",
         type=str,
