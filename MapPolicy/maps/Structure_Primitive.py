@@ -711,7 +711,7 @@ class Sphere(StructureNode):
         
         for i in range(len(p)):
             d[i] = rotate_6D(d[i], rotation).view(self.B, 3)
-            self.Node_Axis = {'p': p[i], 'd': d[i]}
+            self.Node_Axis[i] = {'p': p[i], 'd': d[i]}
             
         super().__init__(self.position, self.rotation, self.rotation_order, \
             self.vertices, Semantic, Affordance, \
@@ -2249,7 +2249,7 @@ class Ring(StructureNode):
 class Torus(StructureNode):
     def __init__(self, central_radius, start_torus_radius, exist_angle=None, 
                  end_torus_radius=None, position=[0, 0, 0], rotation=[1, 0, 0, 0, 1, 0], 
-                 rotation_order="XYZ", num_of_segment_center=32, num_of_segment_torus=32, 
+                 rotation_order="XYZ", num_of_segment_center=8, num_of_segment_torus=8, 
                  Semantic=None, Affordance=None):
         """
         基于标准几何模板的高效圆环体构建 (Vectorized Implementation)

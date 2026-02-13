@@ -6,7 +6,7 @@ export MKL_NUM_THREADS=${NUMBER_THREAD}
 export OPENBLAS_NUM_THREADS=${NUMBER_THREAD}
 export VECLIB_MAXIMUM_THREADS=${NUMBER_THREAD}
 export NUMEXPR_NUM_THREADS=${NUMBER_THREAD}
-PHYSICAL_DEVICE_ID=7
+PHYSICAL_DEVICE_ID=1
 BATCH_SIZE=24
 NUM_SKIP_EPOCHS=0
 NUM_EPOCHS=300
@@ -19,11 +19,25 @@ AGENTS=(
 )
 
 TASK_CAMERA_PAIRS=(
-    "bin-picking:corner"
-    "bin-picking:corner2"
-    # "box-close:corner"
-    "box-close:corner2"
+    "sweep:corner"
+    "sweep:corner2"
+    "sweep-into:corner"
+    "sweep-into:corner2"
+    "pick-out-of-hole:corner"
+    "pick-out-of-hole:corner2"
 )
+
+    # "push-wall:corner"
+    # "push-wall:corner2"
+    # "pick-place-wall:corner"
+    # "pick-place-wall:corner2"
+    # "reach-wall:corner"
+    # "reach-wall:corner2"
+    # "handle-pull:corner"
+    # "handle-pull:corner2"
+    # "handle-pull-side:corner"
+    # "handle-pull-side:corner2"
+
 echo "Starting training runs with overridden parameters..."
 for LAMBDA_VAL in "${LAMBDA_PHYSICALS[@]}"; do
     for AGENT_NAME in "${AGENTS[@]}"; do

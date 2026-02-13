@@ -25,9 +25,13 @@ AGENTS=(
 
 # 定义要运行的所有任务列表
 TASKS=(
+    # "coffee-pull"
+    # "coffee-push"
+    # "handle-pull"
+    # "handle-pull-side"
+    "sweep"
+    "sweep-into"
     "pick-out-of-hole"
-    "pick-place-wall"
-    "push-wall"
 )
 
 CAMERA_NAMES=(

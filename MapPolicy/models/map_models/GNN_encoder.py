@@ -5,14 +5,19 @@ from torch_scatter import scatter_max, scatter_mean
 from MapPolicy.helpers.pytorch import safe_normalize
 
 MAP_NODE_VOCAB = {
+    "basketball": 4,
     "bin-picking": 5,
     "box-close": 6,
     "coffee-pull": 4,
     "coffee-push": 4,
+    "disassemble": 3,
+    "hammer": 3,
     "hand-insert": 2,
     "handle-pull": 3,
     "handle-pull-side": 3,
+    "lever-pull": 4,
     "peg-insert-side": 3,
+    "peg-unplug-side": 3,
     "pick-out-of-hole": 3,
     "pick-place": 1,
     "pick-place-wall": 3,
@@ -21,6 +26,8 @@ MAP_NODE_VOCAB = {
     "push-wall": 3,
     "reach-wall": 2,
     "shelf-place": 4,
+    "soccer": 5,
+    "stick-pull": 4,
     "sweep": 1,
     "sweep-into": 3,
 }
