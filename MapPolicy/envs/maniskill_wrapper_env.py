@@ -243,8 +243,30 @@ class ManiSkillEnv(gymnasium.Env):
 
     def get_point_cloud(self) -> np.ndarray:
         """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。"""
-        point_cloud, valid_mask, _ = self._build_full_point_cloud_and_mask()
-        point_cloud = point_cloud[valid_mask]
+        point_cloud, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
+
+        seg = self._to_numpy(pc_src["segmentation"])
+        seg = np.asarray(seg)
+        if seg.ndim == 2:
+            seg = seg[:, 0]
+        seg = seg.reshape(-1)
+
+        base = getattr(self.env, "unwrapped", self.env)
+        seg_map = getattr(base, "segmentation_id_map", None)
+        seg_map = seg_map or {}
+        ground_actor_ids = {
+            int(obj_id)
+            for obj_id, obj in seg_map.items()
+            if isinstance(obj, Actor)
+            and "ground" in str(getattr(obj, "name", "")).lower()
+        }
+
+        if ground_actor_ids:
+            keep_mask = (~np.isin(seg, np.array(sorted(ground_actor_ids), dtype=seg.dtype))) & valid_mask
+        else:
+            keep_mask = valid_mask
+
+        point_cloud = point_cloud[keep_mask]
         point_cloud = PointCloud.point_cloud_sampling(
             point_cloud, self.num_points, self.point_sample_method
         )
@@ -271,14 +293,25 @@ class ManiSkillEnv(gymnasium.Env):
         # 官方方式：通过 segmentation_id_map 区分 Actor / Link（Actor 保留，Link 删除）。
         base = getattr(self.env, "unwrapped", self.env)
         seg_map = getattr(base, "segmentation_id_map", None)
+        seg_map = seg_map or {}
+
         link_ids = {
             int(obj_id)
             for obj_id, obj in seg_map.items()
             if isinstance(obj, Link) and not isinstance(obj, Actor)
         }
 
-        if link_ids:
-            keep_mask = (~np.isin(seg, np.array(sorted(link_ids), dtype=seg.dtype))) & valid_mask
+        ground_actor_ids = {
+            int(obj_id)
+            for obj_id, obj in seg_map.items()
+            if isinstance(obj, Actor)
+            and "ground" in str(getattr(obj, "name", "")).lower()
+        }
+
+        remove_ids = link_ids | ground_actor_ids
+
+        if remove_ids:
+            keep_mask = (~np.isin(seg, np.array(sorted(remove_ids), dtype=seg.dtype))) & valid_mask
         else:
             keep_mask = valid_mask
 
