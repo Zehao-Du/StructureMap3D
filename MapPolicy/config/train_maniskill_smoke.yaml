@@ -25,7 +25,7 @@ lambda_physical: 1
 train:
   clip_grad_value: 1.0
   learning_rate: 2e-4
-  num_epochs: 1
+  num_epochs: 10
   scheduler_instantiate_config:
     _target_: MapPolicy.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
     num_warmup_epochs: 1

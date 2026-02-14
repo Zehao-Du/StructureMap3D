@@ -64,6 +64,10 @@ class Optimizers(object):
         warmup_factor: float = 0.1,
         eta_min: float = 1e-6,  # [推荐] 增加这个参数，防止LR降到0
     ):
+        num_warmup_epochs = max(int(num_warmup_epochs), 0)
+        num_epochs = max(int(num_epochs), 1)
+        cosine_epochs = max(num_epochs - num_warmup_epochs, 1)
+
         # 1. Warmup 阶段: LR 从 (lr * warmup_factor) 线性增加到 lr
         scheduler_warmup = torch.optim.lr_scheduler.LinearLR(
             optimizer=optimizer,
@@ -75,7 +79,7 @@ class Optimizers(object):
         # 2. Cosine 阶段: LR 从 lr 余弦衰减到 eta_min
         scheduler_train = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer,
-            T_max=(num_epochs - num_warmup_epochs),
+            T_max=cosine_epochs,
             eta_min=eta_min,
         )
         

@@ -320,6 +320,11 @@ class RoboGraphormer(nn.Module):
         preds: [M, 24] Predicted anchors for node i and node j
         data: PyG batch containing edge_type, edge_param
         """
+        # 如果没有有效的边（preds 为空），直接返回 0，避免在后续 mean()/norm() 上产生 NaN
+        if preds is None or preds.numel() == 0 or preds.shape[0] == 0:
+            zero = preds.new_tensor(0.0) if preds is not None else torch.tensor(0.0)
+            return zero, zero
+
         # --- A. 解析预测向量 ---
         # 约定: 前12位是 Node i 的 Anchor, 后12位是 Node j 的 Anchor
         # Anchor 结构: [Normal(3), Tangent(3), Bitangent(3), Position(3)]
