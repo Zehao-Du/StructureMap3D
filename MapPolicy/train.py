@@ -21,7 +21,7 @@ os.environ['MUJOCO_GL'] = 'egl'
 os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
 # os.environ['CUDA_VISIBLE_DEVICES'] = '7'
 
-@hydra.main(version_base=None, config_path="config", config_name="train_metaworld")
+@hydra.main(version_base=None, config_path="config", config_name="train_rlbench")
 def main(config):
     #############################
     # log important information #

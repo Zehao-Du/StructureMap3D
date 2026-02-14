@@ -5,6 +5,7 @@ from torch_scatter import scatter_max, scatter_mean
 from MapPolicy.helpers.pytorch import safe_normalize
 
 MAP_NODE_VOCAB = {
+    # metaworld
     "basketball": 4,
     "bin-picking": 5,
     "box-close": 6,
@@ -30,6 +31,9 @@ MAP_NODE_VOCAB = {
     "stick-pull": 4,
     "sweep": 1,
     "sweep-into": 3,
+    
+    # rlbench
+    "close_box": 6,
 }
 
 # -----------------------------------------------------------------------------

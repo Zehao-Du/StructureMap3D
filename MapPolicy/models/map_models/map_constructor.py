@@ -37,6 +37,7 @@ from MapPolicy.maps.SweepInto import StructureMap_SweepInto
 from MapPolicy.models.clip.clip_encoder import CLIPEncoder
 
 MAP_DIM_VOCAB = {
+    # metaworld
     "basketball": [8, 20, 44],
     "bin-picking": [19, 34, 64],
     "box-close": [20, 38, 74],
@@ -62,8 +63,12 @@ MAP_DIM_VOCAB = {
     "stick-pull": [11, 23, 47],
     "sweep": [3, 6, 12],
     "sweep-into": [9, 18, 36],
+    
+    # rlbench
+    "close_box": [20, 38, 74],
 }
-MAP_CLASS_VOCAB = { 
+MAP_CLASS_VOCAB = {
+    # metaworld
     "basketball": StructureMap_Basketball,
     "bin-picking": StructureMap_BinPicking,
     "box-close": StructureMap_BoxClose,
@@ -89,6 +94,9 @@ MAP_CLASS_VOCAB = {
     "stick-pull": StructureMap_StickPull,
     "sweep": StructureMap_Sweep,
     "sweep-into": StructureMap_SweepInto,
+    
+    # rlbench
+    "close_box": StructureMap_BoxClose,
 }
 
 class ParameterEstimator_SingleFrame(nn.Module):

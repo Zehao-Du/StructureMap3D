@@ -586,6 +586,7 @@ class RLBenchEvaluator(Evaluator):
             while not terminated:
                 obs_img = obs_dict["image"]
                 obs_point_cloud = obs_dict["point_cloud"]
+                obs_point_cloud_no_robot = obs_dict["point_cloud_no_robot"]
                 obs_robot_state = obs_dict["robot_state"]
                 device = next(policy.parameters()).device
                 obs_img_tensor = (
@@ -593,6 +594,9 @@ class RLBenchEvaluator(Evaluator):
                 )
                 obs_point_cloud_tensor = (
                     torch.from_numpy(obs_point_cloud).float().unsqueeze(0).to(device)
+                )
+                obs_point_cloud_no_robot_tensor = (
+                    torch.from_numpy(obs_point_cloud_no_robot).float().unsqueeze(0).to(device)
                 )
                 obs_robot_state_tensor = (
                     torch.from_numpy(obs_robot_state).float().unsqueeze(0).to(device)
@@ -602,6 +606,7 @@ class RLBenchEvaluator(Evaluator):
                 input_data = {
                     "images": obs_img_tensor,
                     "point_clouds": obs_point_cloud_tensor,
+                    "point_cloud_no_robot": obs_point_cloud_no_robot_tensor,
                     "robot_states": obs_robot_state_tensor,
                     "texts": [self.env.text] * batch_size,
                 }

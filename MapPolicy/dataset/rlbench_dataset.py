@@ -44,6 +44,7 @@ class RLBenchDataset(torch.utils.data.Dataset):
         # Logger.log_notice(f'images shape: {self._images.shape}')
         assert self._images.shape[1] == 3
         self._point_clouds = zarr_root["data"]["point_clouds"][begin_index:end_index]
+        self._point_clouds_no_robot = zarr_root["data"]["point_clouds_no_robot"][begin_index:end_index]
         self._robot_states = zarr_root["data"]["robot_states"][begin_index:end_index]
         self._actions = zarr_root["data"]["actions"][begin_index:end_index]
         self._texts = zarr_root["data"]["texts"][begin_index:end_index]
@@ -53,10 +54,11 @@ class RLBenchDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         image = torch.from_numpy(self._images[idx]).float()
         point_cloud = torch.from_numpy(self._point_clouds[idx]).float()
+        point_cloud_no_robot = torch.from_numpy(self._point_clouds_no_robot[idx]).float()
         robot_state = torch.from_numpy(self._robot_states[idx]).float()
         action = torch.from_numpy(self._actions[idx]).float()
         text = self._texts[idx]
-        return image, point_cloud, robot_state, torch.zeros((0,)), action, text
+        return image, point_cloud, point_cloud_no_robot, robot_state, torch.zeros((0,)), action, text
 
     def __len__(self):
         return self._dataset_size
@@ -68,6 +70,9 @@ class RLBenchDataset(torch.utils.data.Dataset):
         )
         Logger.log_info(
             f'point_cloud ({colored(self._point_clouds.dtype, "red")}): {colored(self._point_clouds.shape, "red")}, range: [{colored(self._point_clouds.min(), "red")}, {colored(self._point_clouds.max(), "red")}]'
+        )
+        Logger.log_info(
+            f'point_cloud_no_robot ({colored(self._point_clouds_no_robot.dtype, "red")}): {colored(self._point_clouds.shape, "red")}, range: [{colored(self._point_clouds.min(), "red")}, {colored(self._point_clouds.max(), "red")}]'
         )
         Logger.log_info(
             f'robot_state ({colored(self._robot_states.dtype, "red")}): {colored(self._robot_states.shape, "red")}, range: [{colored(self._robot_states.min(), "red")}, {colored(self._robot_states.max(), "red")}]'
