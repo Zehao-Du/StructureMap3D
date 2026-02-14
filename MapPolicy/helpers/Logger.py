@@ -46,10 +46,15 @@ class WandBLogger:
         api_key = wandb_cfg.get("api_key")
         email = wandb_cfg.get("email")
         username = wandb_cfg.get("username")
-        
-        os.environ["WANDB_API_KEY"] = api_key
-        os.environ["WANDB_USER_EMAIL"] = email
-        os.environ["WANDB_USERNAME"] = username
+
+        # Credentials are optional. If not provided, rely on `wandb login` (~/.netrc)
+        # or pre-set environment variables. Never write None into os.environ.
+        if api_key:
+            os.environ.setdefault("WANDB_API_KEY", str(api_key))
+        if email:
+            os.environ.setdefault("WANDB_USER_EMAIL", str(email))
+        if username:
+            os.environ.setdefault("WANDB_USERNAME", str(username))
         
         self.run = wandb.init(
             project=wandb_cfg["project"],

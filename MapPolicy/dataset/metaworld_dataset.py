@@ -74,10 +74,14 @@ class MetaWorldDataset(torch.utils.data.Dataset):
             f'images ({colored(self._images.dtype, "red")}): {colored(self._images.shape, "red")}, range: [{colored(self._images.min(), "red")}, {colored(self._images.max(), "red")}]'
         )
         Logger.log_info(
-            f'point_cloud ({colored(self._point_clouds.dtype, "red")}): {colored(self._point_clouds.shape, "red")}, range: [{colored(self._point_clouds.min(), "red")}, {colored(self._point_clouds.max(), "red")}]'
+            f'point_cloud ({colored(self._point_clouds.dtype, "red")}): {colored(self._point_clouds.shape, "red")}, '
+            f'xyz_range: [{colored(self._point_clouds[..., 0:3].min(), "red")}, {colored(self._point_clouds[..., 0:3].max(), "red")}], '
+            f'rgb_range: [{colored(self._point_clouds[..., 3:6].min(), "red")}, {colored(self._point_clouds[..., 3:6].max(), "red")}]'
         )
         Logger.log_info(
-            f'point_cloud_no_robot ({colored(self._point_clouds_no_robot.dtype, "red")}): {colored(self._point_clouds_no_robot.shape, "red")}, range: [{colored(self._point_clouds_no_robot.min(), "red")}, {colored(self._point_clouds_no_robot.max(), "red")}]'
+            f'point_cloud_no_robot ({colored(self._point_clouds_no_robot.dtype, "red")}): {colored(self._point_clouds_no_robot.shape, "red")}, '
+            f'xyz_range: [{colored(self._point_clouds_no_robot[..., 0:3].min(), "red")}, {colored(self._point_clouds_no_robot[..., 0:3].max(), "red")}], '
+            f'rgb_range: [{colored(self._point_clouds_no_robot[..., 3:6].min(), "red")}, {colored(self._point_clouds_no_robot[..., 3:6].max(), "red")}]'
         )
         Logger.log_info(
             f'robot_state ({colored(self._robot_states.dtype, "red")}): {colored(self._robot_states.shape, "red")}, range: [{colored(self._robot_states.min(), "red")}, {colored(self._robot_states.max(), "red")}]'

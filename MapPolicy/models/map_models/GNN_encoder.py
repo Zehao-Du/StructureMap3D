@@ -12,6 +12,9 @@ MAP_NODE_VOCAB = {
     "pick-place-wall": 3,
     "push-wall": 3,
     "shelf-place": 4,
+    "disassemble": 3,
+    "hammer": 3,
+    "PickCube-v1": 1,
 }
 
 # -----------------------------------------------------------------------------

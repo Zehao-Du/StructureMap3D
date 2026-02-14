@@ -12,11 +12,14 @@ sys.path.append(
 from MapPolicy.maps.BinPicking import StructureMap_BinPicking
 from MapPolicy.maps.BoxClose import StructureMap_BoxClose
 from MapPolicy.maps.PegInsertSide import StructureMap_PegInsertSide
+from MapPolicy.maps.PickCube import StructureMap_PickCube
 from MapPolicy.maps.PickOutOfHole import StructureMap_PickOutOfHole
 from MapPolicy.maps.PickPlaceWall import StructureMap_PickPlaceWall
 from MapPolicy.maps.PushWall import StructureMap_PushWall
 from MapPolicy.maps.ShelfPlace import StructureMap_ShelfPlace
 from MapPolicy.maps.HandInsert import StructureMap_HandInsert
+from MapPolicy.maps.Disassemble import StructureMap_Disassemble
+from MapPolicy.maps.Hammer import StructureMap_Hammer
 from MapPolicy.models.clip.clip_encoder import CLIPEncoder
 
 MAP_DIM_VOCAB = {
@@ -28,7 +31,12 @@ MAP_DIM_VOCAB = {
     "pick-place-wall": [9, 18, 36],
     "push-wall": [9, 18, 36],
     "shelf-place": [14, 26, 50],
-}
+    "disassemble": [6, 15, 33],
+    "hammer": [6, 15, 33],
+
+    # Maniskill
+    "PickCube-v1": [3, 6, 12],
+} # accumulated dimensions for sizes, positions, rotations
 MAP_CLASS_VOCAB = { 
     "bin-picking": StructureMap_BinPicking,
     "box-close": StructureMap_BoxClose,
@@ -38,6 +46,9 @@ MAP_CLASS_VOCAB = {
     "pick-place-wall": StructureMap_PickPlaceWall,
     "push-wall": StructureMap_PushWall,
     "shelf-place": StructureMap_ShelfPlace,
+    "disassemble": StructureMap_Disassemble,
+    "hammer": StructureMap_Hammer,
+    "PickCube-v1": StructureMap_PickCube,
 }
 
 class ParameterEstimator_SingleFrame(nn.Module):

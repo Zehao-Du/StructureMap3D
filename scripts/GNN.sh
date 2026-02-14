@@ -24,9 +24,11 @@ AGENTS=(
 
 # 定义要运行的所有任务列表
 TASKS=(
-    "pick-out-of-hole"
-    "pick-place-wall"
-    "push-wall"
+    # "pick-out-of-hole"
+    # "pick-place-wall"
+    # "push-wall"
+    # "hammer"
+    "disassemble"
 )
 
 CAMERA_NAMES=(

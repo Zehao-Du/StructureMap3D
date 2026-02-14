@@ -4,6 +4,12 @@ import os
 import pathlib
 import sys
 
+# ensure project root is on PYTHONPATH so this file can be run directly
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.abspath(os.path.join(_current_dir, ".."))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 import hydra
 import torch
 import wandb
@@ -51,6 +57,27 @@ def main(config):
     # set seed #
     ############
     set_seed(config.seed)
+
+    # -- GPU selection convenience -------------------------------------------------
+    # If the user sets CUDA_VISIBLE_DEVICES in the environment (or uses GPU_IDS
+    # in the wrapper script which exports it), we prefer the first visible GPU
+    # as the training device (i.e. `cuda:0`). Alternatively, setting MAP_GPU lets
+    # you directly choose a device index.
+    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+    map_gpu = os.environ.get("MAP_GPU")
+    if cuda_visible:
+        # When CUDA_VISIBLE_DEVICES is set, the process should use the first
+        # visible device. Set config.device accordingly to `cuda:0`.
+        config.device = "cuda:0"
+        Logger.log_info(f"Using CUDA_VISIBLE_DEVICES={cuda_visible}; set device={config.device}")
+    elif map_gpu:
+        try:
+            idx = int(map_gpu)
+            config.device = f"cuda:{idx}"
+            Logger.log_info(f"Using MAP_GPU={map_gpu}; set device={config.device}")
+        except ValueError:
+            Logger.log_warning(f"Invalid MAP_GPU={map_gpu}; ignoring and using config.device={config.device}")
+    # -----------------------------------------------------------------------------
 
     ################
     # wandb logger #

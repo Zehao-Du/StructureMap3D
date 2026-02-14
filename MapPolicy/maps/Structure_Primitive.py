@@ -328,20 +328,32 @@ class Cylinder(StructureNode):
         t = []
         b = []
         
-        # Top Face
+        # 0. Top Face (顶面)
         Top_Face_Center = self.vertices[:, 0]
         p.append(Top_Face_Center)
         t.append(normalize(self.vertices[:, 1] - Top_Face_Center))
         edge_side = self.vertices[:, 2] - Top_Face_Center
         n.append(normalize(torch.cross(t[0], edge_side, dim=-1)))
         b.append(normalize(torch.cross(t[0], n[0], dim=-1)))
-        # Bottom Face
+
+        # 1. Bottom Face (底面)
         Bottom_Face_Center = self.vertices[:, num_of_segment + 1]
         p.append(Bottom_Face_Center)
         t.append(normalize(self.vertices[:, num_of_segment + 2] - Bottom_Face_Center))
         edge_side = self.vertices[:, num_of_segment + 3] - Bottom_Face_Center
         n.append(normalize(torch.cross(t[1], edge_side, dim=-1)))
         b.append(normalize(torch.cross(t[1], n[1], dim=-1)))
+
+        # 2. Side Face
+        Side_Face_Center_Base = (Top_Face_Center + Bottom_Face_Center) * 0.5
+        side_n = normalize(self.vertices[:, 1] - Top_Face_Center)
+        avg_radius = (self.top_radius + self.bottom_radius) * 0.5
+        side_t = normalize(Top_Face_Center - Bottom_Face_Center) # 切线：沿柱体轴向向上
+        side_b = normalize(torch.cross(side_n, side_t, dim=-1))   # 副切线：绕柱体表面的切向
+        p.append(Side_Face_Center_Base + side_n * avg_radius.unsqueeze(-1))
+        n.append(side_n)
+        t.append(side_t)
+        b.append(side_b)
         
         for i in range(len(p)):
             self.Node_Face[i] = {'p': p[i], 'n': n[i], 't': t[i], 'b': b[i]}
@@ -350,7 +362,7 @@ class Cylinder(StructureNode):
         p.clear()
         d = []
         
-        p.append(Bottom_Face_Center)
+        p.append(Side_Face_Center_Base)
         d.append(normalize(Top_Face_Center - Bottom_Face_Center))
         
         for i in range(len(p)):
@@ -1855,3 +1867,277 @@ class Cone(StructureNode):
         out = torch.cat(points_list, dim=1)
         # 裁剪到 total_points (因为 n_base + n_side 可能因为 float 转换有细微误差)
         return out[:, :total_points, :]
+
+class Torus(StructureNode):
+    def __init__(self, central_radius, start_torus_radius, exist_angle=None, 
+                 end_torus_radius=None, position=[0, 0, 0], rotation=[1, 0, 0, 0, 1, 0], 
+                 rotation_order="XYZ", num_of_segment_center=32, num_of_segment_torus=32, 
+                 Semantic=None, Affordance=None):
+        """
+        基于标准几何模板的高效圆环体构建 (Vectorized Implementation)
+        """
+        # -----------------------------------------------------------
+        # 1. 参数预处理 (Input Standardization)
+        # -----------------------------------------------------------
+        dtype = central_radius.dtype
+        device = central_radius.device
+        B = central_radius.shape[0]
+        
+        # 统一维度处理函数
+        def _ensure_tensor(val, target_shape_ref=None):
+            if val is None and target_shape_ref is not None:
+                return target_shape_ref.clone()
+            if isinstance(val, (int, float)):
+                return torch.full((B, 1), val, dtype=dtype, device=device)
+            if not isinstance(val, torch.Tensor):
+                val = torch.as_tensor(val, dtype=dtype, device=device)
+            if val.ndim == 0:
+                val = val.view(1, 1).repeat(B, 1)
+            elif val.ndim == 1:
+                val = val.view(1, -1).repeat(B, 1) if val.shape[0] != B else val.view(B, 1)
+            return val
+
+        # 填充缺失值并规范维度 [B, 1]
+        exist_angle = _ensure_tensor(exist_angle, torch.full((B, 1), 2 * math.pi, dtype=dtype, device=device))
+        start_torus_radius = _ensure_tensor(start_torus_radius)
+        if end_torus_radius is None:
+            end_torus_radius = start_torus_radius
+        else:
+            end_torus_radius = _ensure_tensor(end_torus_radius)
+            
+        central_radius = _ensure_tensor(central_radius)
+
+        # 处理多维参数
+        if isinstance(position, (list, tuple)):
+            position = torch.as_tensor(position, dtype=dtype, device=device)
+        if position.ndim == 1: 
+            position = position.unsqueeze(0).repeat(B, 1) # [B, 3]
+            
+        if isinstance(rotation, (list, tuple)):
+            rotation = torch.as_tensor(rotation, dtype=dtype, device=device)
+        if rotation.ndim == 1: 
+            rotation = rotation.unsqueeze(0).repeat(B, 1) # [B, 6]
+        
+        # 记录参数
+        self.dtype = dtype
+        self.device = device
+        self.B = B
+        self.central_radius = central_radius
+        self.start_torus_radius = start_torus_radius
+        self.exist_angle = exist_angle
+        self.end_torus_radius = end_torus_radius
+        self.num_of_segment_center = num_of_segment_center
+        self.num_of_segment_torus = num_of_segment_torus
+        self.position = position
+        self.rotation = rotation
+        self.rotation_order = rotation_order
+        
+        # -----------------------------------------------------------
+        # 2. 向量化计算变形张量 (Vectorized Deformation)
+        # -----------------------------------------------------------
+        Nc = num_of_segment_center
+        Nt = num_of_segment_torus
+        
+        # === A. 生成独立的中心点 (Start & End) ===
+        # central_radius is [B, 1]
+        # stack results in [B, 1, 3] -> 这里的维度已经是3维了，不需要再 unsqueeze(1)
+        
+        # Point 0: Start Center (angle 0) -> (R, 0, 0)
+        p_start = torch.stack([
+            central_radius, 
+            torch.zeros_like(central_radius), 
+            torch.zeros_like(central_radius)
+        ], dim=-1) # [B, 1, 3]
+        
+        # Point 1: End Center (angle exist_angle)
+        cos_exist = torch.cos(exist_angle) # [B, 1]
+        sin_exist = torch.sin(exist_angle) # [B, 1]
+        p_end = torch.stack([
+            central_radius * cos_exist,
+            torch.zeros_like(central_radius),
+            central_radius * sin_exist
+        ], dim=-1) # [B, 1, 3]
+        
+        # === B. 向量化生成网格顶点 ===
+        
+        # 1. 进度网格生成
+        center_prog = torch.linspace(0, 1, Nc + 1, dtype=dtype, device=device).view(1, Nc+1, 1)
+        torus_ang = torch.linspace(0, 2 * math.pi, Nt + 1, dtype=dtype, device=device).view(1, 1, Nt+1)
+        
+        # 2. 计算大圆路径上的参数 (广播到 [B, Nc+1, 1])
+        theta_center = exist_angle.unsqueeze(1) * center_prog # [B, Nc+1, 1]
+        cos_c = torch.cos(theta_center)
+        sin_c = torch.sin(theta_center)
+        
+        # 3. 半径渐变插值
+        r_start_view = start_torus_radius.unsqueeze(1) # [B, 1, 1]
+        r_end_view = end_torus_radius.unsqueeze(1)     # [B, 1, 1]
+        r_current = r_start_view * (1 - center_prog) + r_end_view * center_prog # [B, Nc+1, 1]
+        
+        # 4. 计算圆管截面参数
+        cos_t = torch.cos(torus_ang) # [1, 1, Nt+1]
+        sin_t = torch.sin(torus_ang) # [1, 1, Nt+1]
+        
+        # 5. 组合坐标
+        # Y 轴
+        y_grid = r_current * sin_t # [B, Nc+1, Nt+1]
+        
+        # XZ 平面投影长度
+        R_major = central_radius.unsqueeze(1) # [B, 1, 1]
+        outer_len = R_major + r_current * cos_t # [B, Nc+1, Nt+1]
+        
+        # X, Z 坐标
+        x_grid = outer_len * cos_c
+        z_grid = outer_len * sin_c
+        
+        # 6. 堆叠并展平
+        grid_verts = torch.stack([x_grid, y_grid, z_grid], dim=-1) # [B, Nc+1, Nt+1, 3]
+        grid_verts_flat = grid_verts.flatten(1, 2) # [B, (Nc+1)*(Nt+1), 3]
+        
+        # === C. 合并所有顶点 ===
+        # p_start: [B, 1, 3]
+        # p_end:   [B, 1, 3]
+        # grid:    [B, N, 3]
+        # Dim 1 check: 1 + 1 + N -> OK
+        self.vertices = torch.cat([p_start, p_end, grid_verts_flat], dim=1)
+        
+        # -----------------------------------------------------------
+        # 4. 应用几何变换 (Apply Transforms)
+        # -----------------------------------------------------------
+        self.vertices = rotate_6D(self.vertices, rotation) + position.unsqueeze(1)
+        
+        # -----------------------------------------------------------
+        # 5. 定义拓扑特征 (Faces & Axes)
+        # -----------------------------------------------------------
+        self.Node_Face = {}
+        self.Node_Axis = {}
+        
+        # === 1. 定义中心垂线 (Center Vertical Axis) ===
+        # 轴起点：圆环体的几何中心 [B, 3]
+        axis_p = self.position
+        
+        # 轴方向：局部 Y 轴 (0, 1, 0) 经过旋转后的方向
+        # [B, 3]
+        local_y_axis = torch.tensor([0.0, 1.0, 0.0], dtype=dtype, device=device).view(1, 3).repeat(B, 1)
+        axis_d = rotate_6D(local_y_axis.unsqueeze(1), rotation).squeeze(1)
+        
+        self.Node_Axis[0] = {'p': axis_p, 'd': normalize(axis_d)}
+
+        # === 2. 定义四个关键面 (Outer, Top, Inner, Bottom) ===
+        if Nc > 0 and Nt > 0:
+            # 基础参数
+            base_idx = 2
+            
+            # 定义四个方向的逻辑索引 (j)
+            # 0: Outer, Nt/4: Top, Nt/2: Inner, 3Nt/4: Bottom
+            indices_j = {
+                0: 0,                   # Face 0: Outer (外侧)
+                1: Nt // 4,             # Face 1: Top   (顶部)
+                2: Nt // 2,             # Face 2: Inner (内侧)
+                3: (3 * Nt) // 4        # Face 3: Bottom(底部)
+            }
+            
+            # 预定义局部坐标系下的法线 (n) 和切线 (t)
+            # 假设我们在大圆角度 theta=0 处取点 (即 X 轴正方向起始处)
+            # 此时：
+            #   大圆切线 t 指向 +Z 方向 (0, 0, 1)
+            #   法线 n 根据截面位置决定：
+            #       Outer (最右):  +X (1, 0, 0) -> 指向外
+            #       Top (最上):    +Y (0, 1, 0) -> 指向天
+            #       Inner (最左):  -X (-1, 0, 0) -> 指向圆环中心 (孔)
+            #       Bottom (最下): -Y (0, -1, 0) -> 指向地
+            
+            vectors_def = {
+                0: {'n': [1.0, 0.0, 0.0],  't': [0.0, 0.0, 1.0]}, # Outer
+                1: {'n': [0.0, 1.0, 0.0],  't': [0.0, 0.0, 1.0]}, # Top
+                2: {'n': [-1.0, 0.0, 0.0], 't': [0.0, 0.0, 1.0]}, # Inner
+                3: {'n': [0.0, -1.0, 0.0], 't': [0.0, 0.0, 1.0]}  # Bottom
+            }
+
+            for face_id, j in indices_j.items():
+                # 1. 获取位置 (Position)
+                # 直接取网格顶点，保证严格在表面上
+                # 我们取 i=0 (theta=0) 处的截面
+                idx_curr = base_idx + j
+                v_curr = self.vertices[:, idx_curr, :] # [B, 3]
+                face_center = v_curr
+                
+                # 2. 获取并旋转向量 (Vectors)
+                # 构建局部向量 [B, 1, 3]
+                def_n = torch.tensor(vectors_def[face_id]['n'], dtype=dtype, device=device)
+                def_t = torch.tensor(vectors_def[face_id]['t'], dtype=dtype, device=device)
+                
+                local_n = def_n.view(1, 1, 3).repeat(B, 1, 1)
+                local_t = def_t.view(1, 1, 3).repeat(B, 1, 1)
+                
+                # 应用物体的全局旋转
+                # 注意：rotate_6D 仅旋转向量，不平移，这是正确的
+                world_n = rotate_6D(local_n, rotation).squeeze(1)
+                world_t = rotate_6D(local_t, rotation).squeeze(1)
+                
+                # 归一化 (防止旋转计算误差)
+                n = normalize(world_n)
+                t = normalize(world_t)
+                
+                # 计算副法线 b (Binormal)
+                # 使用右手定则: n x t
+                # 例如 Top: Y x Z = X (指向 Side 方向)，符合几何直觉
+                b = torch.cross(n, t, dim=-1)
+                
+                self.Node_Face[face_id] = {'p': face_center, 'n': n, 't': t, 'b': b}
+        
+        # -----------------------------------------------------------
+        # 6. 初始化父类
+        # -----------------------------------------------------------
+        super().__init__(position, rotation, rotation_order,
+                         Node_Position=self.vertices, Node_Face=self.Node_Face, Node_Axis=self.Node_Axis,
+                         Node_Semantic=Semantic, Node_Affordance=Affordance)
+    
+    def get_surface_points(self, total_points=600):
+        """
+        在圆环体表面上采样点（使用参数方程均匀采样）
+        :param total_points: 采样的总点数
+        :return: [B, total_points, 3]
+        """
+        if total_points <= 0:
+            return torch.zeros((self.B, 0, 3), device=self.device, dtype=self.dtype)
+        
+        B = self.B
+        device = self.device
+        dtype = self.dtype
+        
+        # 使用参数方程在圆环体表面均匀采样
+        # 参数 u: 中心圆角度 [0, exist_angle]
+        # 参数 v: 圆环角度 [0, 2π]
+        u = torch.rand(B, total_points, 1, device=device, dtype=dtype)
+        v = torch.rand(B, total_points, 1, device=device, dtype=dtype)
+        
+        # 中心圆角度
+        theta = u * self.exist_angle.view(B, 1, 1)  # [B, N, 1]
+        
+        # 圆环角度
+        phi = v * 2 * math.pi  # [B, N, 1]
+        
+        # 插值圆环半径（根据中心圆角度）
+        # 简化：使用平均半径
+        torus_radius_avg = (self.start_torus_radius + self.end_torus_radius) / 2
+        
+        # 计算坐标
+        # 先计算圆环上的点（相对于中心圆的局部坐标系）
+        torus_x = torus_radius_avg.view(B, 1, 1) * torch.cos(phi)
+        torus_y = torus_radius_avg.view(B, 1, 1) * torch.sin(phi)
+        
+        # 然后绕中心圆旋转
+        # 中心圆半径 + 圆环在中心圆平面上的投影
+        outer_radius = self.central_radius.view(B, 1, 1) + torus_x
+        
+        x = outer_radius * torch.cos(theta)
+        y = torus_y
+        z = outer_radius * torch.sin(theta)
+        
+        pts = torch.cat([x, y, z], dim=-1)
+        
+        # 应用全局变换
+        pts = rotate_6D(pts, self.rotation) + self.position.unsqueeze(1)
+        
+        return pts

@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import open3d as o3d
 import pytorch3d.ops as torch3d_ops
 import torch
@@ -271,8 +272,14 @@ class PointCloud(object):
             point_cloud = point_cloud[sampled_indices]
         elif method == "fps":
             # fast point cloud sampling using torch3d
-            point_cloud = torch.from_numpy(point_cloud).unsqueeze(0).cuda()
-            num_points = torch.tensor([num_points]).cuda()
+            # 默认使用 CPU 做 FPS，避免在部分环境下强制 CUDA 导致段错误。
+            # 如需 CUDA，可设置环境变量：MAP_POLICY_FPS_DEVICE=cuda
+            fps_device = os.environ.get("MAP_POLICY_FPS_DEVICE", "cpu").lower()
+            use_cuda = fps_device == "cuda" and torch.cuda.is_available()
+            device = torch.device("cuda") if use_cuda else torch.device("cpu")
+
+            point_cloud = torch.from_numpy(point_cloud).unsqueeze(0).to(device)
+            num_points = torch.tensor([num_points], device=device)
             # remember to only use coord to sample
             _, sampled_indices = torch3d_ops.sample_farthest_points(
                 points=point_cloud[..., :3], K=num_points

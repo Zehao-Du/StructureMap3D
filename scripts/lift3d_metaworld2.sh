@@ -19,8 +19,8 @@ AGENTS=(
 )
 
 TASK_CAMERA_PAIRS=(
-    "hammer:corner"
-    "hammer:corner2"
+    "disassemble:corner"
+    "disassemble:corner2"
     # "bin-picking:corner"
     # "bin-picking:corner2"
     # "box-close:corner"

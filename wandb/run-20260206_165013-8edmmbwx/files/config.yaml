@@ -1,0 +1,35 @@
+_wandb:
+    value:
+        cli_version: 0.24.2
+        e:
+            pn5ak35o43jgpvar2sclwxmcoqaosux1:
+                args:
+                    - --outputs
+                    - outputs
+                    - --project
+                    - StructureMap3D-outputs
+                codePath: scripts/wandb_upload_outputs.py
+                codePathLocal: scripts/wandb_upload_outputs.py
+                email: 3397615213@qq.com
+                executable: /data2/lirui/miniforge3/envs/3D-Map/bin/python
+                git:
+                    commit: 5f17f228a00fe152c8048bf8ed5c0b4d873e1da5
+                    remote: git@github.com:Zehao-Du/StructureMap3D.git
+                host: ps
+                os: Linux-6.8.0-40-generic-x86_64-with-glibc2.35
+                program: /data2/lirui/StructureMap3D/scripts/wandb_upload_outputs.py
+                python: CPython 3.11.14
+                root: /data2/lirui/StructureMap3D
+                startedAt: "2026-02-06T08:50:13.255714Z"
+                writerId: pn5ak35o43jgpvar2sclwxmcoqaosux1
+        m: []
+        python_version: 3.11.14
+        t:
+            "3":
+                - 13
+            "4": 3.11.14
+            "5": 0.24.2
+            "10":
+                - 20
+            "12": 0.24.2
+            "13": linux-x86_64
