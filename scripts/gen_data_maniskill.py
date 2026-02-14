@@ -2,28 +2,16 @@ import argparse
 import copy
 import os
 import pathlib
+import subprocess
 import sys
 from typing import Any
 
+import h5py
 import numpy as np
 import tqdm
 import zarr
 from numcodecs import MsgPack
 from termcolor import colored, cprint
-from mani_skill.examples.motionplanning.panda.solutions import (
-    solveDrawSVG,
-    solveDrawTriangle,
-    solveLiftPegUpright,
-    solvePegInsertionSide,
-    solvePickCube,
-    solvePlaceSphere,
-    solvePlugCharger,
-    solvePullCube,
-    solvePullCubeTool,
-    solvePushCube,
-    solveStackCube,
-    solveStackPyramid,
-)
 
 # 兼容直接脚本运行：
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,22 +25,6 @@ from MapPolicy.helpers.Common import (
     save_video_imageio,
 )
 from MapPolicy.helpers.Logger import Logger
-
-
-MP_SOLUTIONS = {
-    "DrawTriangle-v1": solveDrawTriangle,
-    "PickCube-v1": solvePickCube,
-    "StackCube-v1": solveStackCube,
-    "PegInsertionSide-v1": solvePegInsertionSide,
-    "PlugCharger-v1": solvePlugCharger,
-    "PlaceSphere-v1": solvePlaceSphere,
-    "PushCube-v1": solvePushCube,
-    "PullCubeTool-v1": solvePullCubeTool,
-    "LiftPegUpright-v1": solveLiftPegUpright,
-    "PullCube-v1": solvePullCube,
-    "DrawSVG-v1": solveDrawSVG,
-    "StackPyramid-v1": solveStackPyramid,
-}
 
 
 def _maybe_squeeze(x: Any):
@@ -88,63 +60,103 @@ def _extract_success(info: Any) -> bool:
     return False
 
 
-class _MotionPlanningCollectorEnv:
-    """Proxy env: runs ManiSkill motion planner while recording per-step obs/action."""
-
-    def __init__(self, wrapped_env: ManiSkillEnv):
-        self._wrapped = wrapped_env
-        self._base = wrapped_env.env
-        self.records = []
-
-    def reset(self, *args, **kwargs):
-        self._wrapped.cur_step = 0
-        obs, info = self._base.reset(*args, **kwargs)
-        self._wrapped._last_raw_obs = self._wrapped._squeeze_batch_dim(obs)
-        self._wrapped._last_info = self._wrapped._squeeze_batch_dim(info)
-        self.records.clear()
-        return obs, info
-
-    def step(self, action):
-        obs_before = copy.deepcopy(self._wrapped.get_obs())
-
-        obs, reward, terminated, truncated, info = self._base.step(action)
-
-        obs_sq = self._wrapped._squeeze_batch_dim(obs)
-        reward_sq = self._wrapped._to_scalar(self._wrapped._squeeze_batch_dim(reward))
-        terminated_sq = bool(self._wrapped._to_scalar(self._wrapped._squeeze_batch_dim(terminated)))
-        truncated_sq = bool(self._wrapped._to_scalar(self._wrapped._squeeze_batch_dim(truncated)))
-        info_sq = self._wrapped._squeeze_batch_dim(info)
-
-        self._wrapped._last_raw_obs = obs_sq
-        self._wrapped._last_info = info_sq
-        self._wrapped.cur_step += 1
-
-        truncated_sq = truncated_sq or self._wrapped.cur_step >= self._wrapped.max_episode_length
-
-        self.records.append(
-            {
-                "obs": obs_before,
-                "action": np.asarray(action, dtype=np.float32),
-                "reward": float(reward_sq),
-                "terminated": terminated_sq,
-                "truncated": truncated_sq,
-                "info": copy.deepcopy(info_sq),
-            }
-        )
-
-        return obs, reward, terminated, truncated, info
-
-    def __getattr__(self, name):
-        return getattr(self._base, name)
+def _run_command(cmd: list[str], quiet: bool = False):
+    Logger.log_info(f"Running command: {' '.join(cmd)}")
+    if quiet:
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Command failed with code {result.returncode}\n"
+                f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+    else:
+        result = subprocess.run(cmd, check=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"Command failed with code {result.returncode}: {' '.join(cmd)}")
 
 
-def _resolve_motionplan_solver(task_id: str):
-    if task_id not in MP_SOLUTIONS:
-        raise RuntimeError(
-            f"No Panda motion-planning solver for task_id={task_id}. "
-            f"Available: {list(MP_SOLUTIONS.keys())}"
-        )
-    return MP_SOLUTIONS[task_id]
+def _generate_raw_trajectory(args, record_dir: pathlib.Path, traj_name: str) -> pathlib.Path:
+    cmd = [
+        sys.executable,
+        "-m",
+        "mani_skill.examples.motionplanning.panda.run",
+        "-e",
+        args.task_id,
+        "-n",
+        str(args.num_episodes),
+        "--only-count-success",
+        "--record-dir",
+        str(record_dir),
+        "--traj-name",
+        traj_name,
+        "--num-procs",
+        str(args.mp_num_procs),
+        "-b",
+        "cpu",
+    ]
+    _run_command(cmd, quiet=args.quiet)
+    traj_path = record_dir / args.task_id / "motionplanning" / f"{traj_name}.h5"
+    if not traj_path.exists():
+        raise FileNotFoundError(f"Raw trajectory not found: {traj_path}")
+    return traj_path
+
+
+def _replay_convert_trajectory(
+    raw_traj_path: pathlib.Path,
+    target_control_mode: str,
+    replay_num_envs: int,
+    quiet: bool = False,
+) -> pathlib.Path:
+    cmd = [
+        sys.executable,
+        "-m",
+        "mani_skill.trajectory.replay_trajectory",
+        "--traj-path",
+        str(raw_traj_path),
+        "--save-traj",
+        "--target-control-mode",
+        target_control_mode,
+        "--obs-mode",
+        "none",
+        "--num-envs",
+        str(replay_num_envs),
+        "-b",
+        "physx_cpu",
+    ]
+    _run_command(cmd, quiet=quiet)
+
+    converted_path = raw_traj_path.with_name(
+        f"{raw_traj_path.stem}.none.{target_control_mode}.physx_cpu.h5"
+    )
+    if not converted_path.exists():
+        raise FileNotFoundError(f"Converted trajectory not found: {converted_path}")
+    return converted_path
+
+
+def _load_episode_actions(traj_h5_path: pathlib.Path):
+    json_path = traj_h5_path.with_suffix(".json")
+    if not json_path.exists():
+        raise FileNotFoundError(f"Converted trajectory json not found: {json_path}")
+
+    import json
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    episodes = meta.get("episodes", [])
+    episode_actions = []
+    with h5py.File(traj_h5_path, "r") as h5f:
+        for episode in episodes:
+            eid = episode["episode_id"]
+            traj_key = f"traj_{eid}"
+            if traj_key not in h5f:
+                continue
+            actions = np.asarray(h5f[traj_key]["actions"][:], dtype=np.float32)
+            seed = episode.get("episode_seed", None)
+            reset_kwargs = episode.get("reset_kwargs", {}) or {}
+            success = bool(episode.get("success", False))
+            episode_actions.append((seed, reset_kwargs, success, actions))
+    return episode_actions
 
 
 def main(args):
@@ -155,10 +167,12 @@ def main(args):
     Logger.log_info(f"Camera name: {args.camera_name}")
     Logger.log_info(f"Image size: {args.image_size}")
     Logger.log_info(f"Obs mode: {args.obs_mode}")
-    Logger.log_info(f"Control mode: {args.control_mode}")
+    Logger.log_info(f"Control mode (target): {args.control_mode}")
     Logger.log_info(f"Num points: {args.num_points}")
     Logger.log_info(f"Number of episodes: {args.num_episodes}")
     Logger.log_info(f"Episode length: {args.episode_length}")
+    Logger.log_info(f"Motion-planning CPU procs: {args.mp_num_procs}")
+    Logger.log_info(f"Replay CPU envs: {args.replay_num_envs}")
     Logger.log_info(f"Save directory: {args.save_dir}")
     Logger.print_seperator()
 
@@ -173,11 +187,29 @@ def main(args):
     )
     video_dir.mkdir(parents=True, exist_ok=True)
 
-    mp_control_mode = "pd_joint_pos"
-    if args.control_mode != mp_control_mode:
-        Logger.log_info(
-            f"Motion-planning collection overrides control mode from {args.control_mode} to {mp_control_mode} for action-dimension compatibility."
+    if args.control_mode != "pd_ee_delta_pos":
+        Logger.log_warning(
+            "Current pipeline is designed for replay conversion to pd_ee_delta_pos. "
+            f"Received target mode={args.control_mode}."
         )
+
+    raw_record_dir = pathlib.Path(args.save_dir) / "raw_motionplanning"
+    raw_record_dir.mkdir(parents=True, exist_ok=True)
+    raw_traj_name = f"{args.task_id}_mp_{args.num_episodes}eps"
+    raw_traj_path = _generate_raw_trajectory(args, raw_record_dir, raw_traj_name)
+    converted_traj_path = _replay_convert_trajectory(
+        raw_traj_path,
+        target_control_mode=args.control_mode,
+        replay_num_envs=args.replay_num_envs,
+        quiet=args.quiet,
+    )
+    converted_episodes = _load_episode_actions(converted_traj_path)
+    if len(converted_episodes) == 0:
+        raise RuntimeError(f"No converted episodes loaded from {converted_traj_path}")
+
+    Logger.log_info(
+        f"Loaded {len(converted_episodes)} converted episodes from {converted_traj_path}"
+    )
 
     env = ManiSkillEnv(
         task_id=args.task_id,
@@ -185,12 +217,11 @@ def main(args):
         image_size=args.image_size,
         camera_name=args.camera_name,
         obs_mode=args.obs_mode,
-        control_mode=mp_control_mode,
+        control_mode=args.control_mode,
         num_points=args.num_points,
         render_mode=None,
         num_envs=1,
     )
-    solve = _resolve_motionplan_solver(args.task_id)
 
     total_count = 0
     img_arrays = []
@@ -204,19 +235,23 @@ def main(args):
     env_info_arrays = []
     texts = []
 
-    max_retries_per_scene = 3
-    scene_retry_count = 0
-    scene_idx = 0
-
     description = args.text if args.text is not None else args.task_id
 
     episode_idx = 0
+    source_episode_idx = 0
     if args.quiet:
         process_bar = tqdm.tqdm(range(args.num_episodes))
 
-    while episode_idx < args.num_episodes:
-        # deterministic per episode if seed provided
-        seed = None if args.seed is None else int(args.seed + scene_idx)
+    while episode_idx < args.num_episodes and source_episode_idx < len(converted_episodes):
+        seed, reset_kwargs, converted_success, converted_actions = converted_episodes[source_episode_idx]
+        source_episode_idx += 1
+
+        if not converted_success:
+            cprint(
+                f"Task: {args.task_id} Converted episode {source_episode_idx-1} marked unsuccessful in replay metadata, skipping.",
+                "yellow",
+            )
+            continue
 
         ep_reward = 0.0
         ep_success = False
@@ -233,50 +268,22 @@ def main(args):
         texts_sub = []
         total_count_sub = 0
 
-        planner_env = _MotionPlanningCollectorEnv(env)
+        reset_seed = reset_kwargs.get("seed", seed)
+        reset_options = reset_kwargs.get("options", None)
         try:
-            res = solve(planner_env, seed=seed, debug=False, vis=False)
-        except Exception as exc:
-            cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} motion-planning exception: {exc}",
-                "red",
-            )
-            scene_retry_count += 1
-            if scene_retry_count >= max_retries_per_scene:
-                cprint(
-                    f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} reached {max_retries_per_scene} failed attempts, switching scene.",
-                    "yellow",
-                )
-                scene_idx += 1
-                scene_retry_count = 0
-            continue
+            env.reset(seed=int(reset_seed) if reset_seed is not None else None, options=reset_options)
+        except Exception:
+            env.reset(seed=int(reset_seed) if reset_seed is not None else None)
 
-        if res == -1:
-            cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} failed: planner returned -1",
-                "red",
-            )
-            scene_retry_count += 1
-            if scene_retry_count >= max_retries_per_scene:
-                cprint(
-                    f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} reached {max_retries_per_scene} failed attempts, switching scene.",
-                    "yellow",
-                )
-                scene_idx += 1
-                scene_retry_count = 0
-            continue
-
-        for rec in planner_env.records:
-            obs_dict = rec["obs"]
+        for action in converted_actions:
+            obs_dict = copy.deepcopy(env.get_obs())
             obs_img = obs_dict["image"]
             obs_robot_state = obs_dict["robot_state"]
             obs_raw_state = obs_dict["raw_state"]
             obs_point_cloud = obs_dict["point_cloud"]
             obs_point_cloud_no_robot = obs_dict["point_cloud_no_robot"]
 
-            action = rec["action"]
-            reward = rec["reward"]
-            env_info = rec["info"]
+            _, reward, terminated, truncated, env_info = env.step(action)
 
             img_arrays_sub.append(obs_img)
             point_cloud_arrays_sub.append(obs_point_cloud)
@@ -293,39 +300,24 @@ def main(args):
             ep_success = ep_success or step_success
             ep_success_times += int(step_success)
 
-        total_count_sub = len(planner_env.records)
+            # 不提前中断：与 ManiSkill replay_trajectory 对齐，完整执行转换后的动作序列。
+            # 否则会丢掉轨迹末尾若干步（常见于已 success 后的尾段动作）。
+
+        total_count_sub = len(action_arrays_sub)
 
         if total_count_sub == 0:
             cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} failed: no trajectory recorded",
+                f"Task: {args.task_id} Episode: {episode_idx} failed: no trajectory recorded",
                 "red",
             )
-            scene_retry_count += 1
-            if scene_retry_count >= max_retries_per_scene:
-                cprint(
-                    f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} reached {max_retries_per_scene} failed attempts, switching scene.",
-                    "yellow",
-                )
-                scene_idx += 1
-                scene_retry_count = 0
             continue
 
         if not ep_success:
             cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} failed with reward {ep_reward} (success_once=False)",
-                "red",
+                f"Task: {args.task_id} Episode: {episode_idx} rollout success_once=False, but keeping episode because converted replay metadata is successful.",
+                "yellow",
             )
-            scene_retry_count += 1
-            if scene_retry_count >= max_retries_per_scene:
-                cprint(
-                    f"Task: {args.task_id} Episode: {episode_idx} Scene: {scene_idx} reached {max_retries_per_scene} failed attempts, switching scene.",
-                    "yellow",
-                )
-                scene_idx += 1
-                scene_retry_count = 0
-            continue
 
-        scene_retry_count = 0
         total_count += total_count_sub
         if args.quiet:
             process_bar.update(1)
@@ -370,7 +362,14 @@ def main(args):
             )
 
         episode_idx += 1
-        scene_idx += 1
+
+    if episode_idx < args.num_episodes:
+        Logger.log_warning(
+            f"Only collected {episode_idx} successful episodes after conversion, fewer than requested {args.num_episodes}."
+        )
+
+    if len(img_arrays) == 0:
+        raise RuntimeError("No successful episodes collected; zarr will not be written.")
 
     # Merge data
     img_arrays = np.stack(img_arrays, axis=0)
@@ -482,10 +481,12 @@ if __name__ == "__main__":
     parser.add_argument("--camera-name", type=str, default="base_camera")
     parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")
-    parser.add_argument("--control-mode", type=str, default="pd_joint_pos")
+    parser.add_argument("--control-mode", type=str, default="pd_ee_delta_pos")
     parser.add_argument("--num-points", type=int, default=1024)
     parser.add_argument("--num-episodes", type=int, default=30)
     parser.add_argument("--episode-length", type=int, default=200)
+    parser.add_argument("--mp-num-procs", type=int, default=1)
+    parser.add_argument("--replay-num-envs", type=int, default=1)
     parser.add_argument(
         "--save-dir",
         type=str,
@@ -497,7 +498,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--text", type=str, default=None)
-    parser.add_argument("--max-consecutive-failures", type=int, default=5)
     parser.add_argument("--quiet", action="store_true")
 
     main(parser.parse_args())

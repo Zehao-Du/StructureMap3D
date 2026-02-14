@@ -75,6 +75,7 @@ class ManiSkillEnv(gymnasium.Env):
         self.env = gymnasium.make(
             task_id,
             num_envs=num_envs,
+            max_episode_steps=max_episode_length,
             obs_mode=self.obs_mode,
             control_mode=control_mode,
             render_mode=self.render_mode,
@@ -388,16 +389,24 @@ class ManiSkillEvaluator(Evaluator):
 
     def __init__(
         self,
-        task_id: str,
+        task_id: Optional[str] = None,
+        task_name: Optional[str] = None,
         max_episode_length: int = 200,
         image_size: int = 128,
         camera_name: str = "base_camera",
         obs_mode: str = "pointcloud",
         control_mode: str = "pd_joint_pos",
+        use_point_crop: bool = False, # No use at current time
         num_points: int = 1024,
+        point_cloud_camera_names: Optional[list[str]] = None,# No use at current time
         point_sample_method: str = "fps",
         render_mode: Optional[str] = None,
     ):
+        if task_id is None:
+            task_id = task_name
+        if task_id is None:
+            raise ValueError("ManiSkillEvaluator requires either task_id or task_name.")
+
         self.env = ManiSkillEnv(
             task_id=task_id,
             max_episode_length=max_episode_length,
