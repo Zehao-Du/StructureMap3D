@@ -13,6 +13,8 @@ import zarr
 from numcodecs import MsgPack
 from termcolor import colored, cprint
 
+# Usage: python scripts/gen_data_maniskill.py --task-id <id> --num-episodes <n> --control-mode pd_ee_delta_pose --mp-num-procs 8 --replay-num-envs 8 --save-dir <dir>
+
 # 兼容直接脚本运行：
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.abspath(os.path.join(_current_dir, ".."))
@@ -314,9 +316,10 @@ def main(args):
 
         if not ep_success:
             cprint(
-                f"Task: {args.task_id} Episode: {episode_idx} rollout success_once=False, but keeping episode because converted replay metadata is successful.",
-                "yellow",
+                f"Task: {args.task_id} Episode: {episode_idx} rollout did NOT succeed during replay — skipping.",
+                "red",
             )
+            continue
 
         total_count += total_count_sub
         if args.quiet:

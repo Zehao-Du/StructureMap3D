@@ -188,33 +188,37 @@ def main(args):
             if args.quiet:
                 process_bar.update(1)
 
-            # save visualized dadta
+            # save visualized data (only every `checkpoint_every` episodes to speed up generation)
             sample_video_array = np.stack(img_arrays_sub, axis=0)
-            save_video_imageio(
-                sample_video_array,
-                video_dir / f"episode_{episode_idx}.mp4",
-                quiet=args.quiet,
+            save_visuals_now = (
+                args.checkpoint_every <= 1 or (args.checkpoint_every > 0 and episode_idx % args.checkpoint_every == 0)
             )
-            save_rgb_image(
-                img_arrays_sub[0],
-                image_dir / f"episode_{episode_idx}_rgb.png",
-                quiet=args.quiet,
-            )
-            save_depth_image(
-                depth_arrays_sub[0],
-                depth_dir / f"episode_{episode_idx}_depth.png",
-                quiet=args.quiet,
-            )
-            save_point_cloud_ply(
-                point_cloud_arrays_sub[0],
-                point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
-                quiet=args.quiet,
-            )
-            save_point_cloud_ply(
-                point_cloud_no_robot_arrays_sub[0],
-                point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
-                quiet=args.quiet,
-            )
+            if save_visuals_now:
+                save_video_imageio(
+                    sample_video_array,
+                    video_dir / f"episode_{episode_idx}.mp4",
+                    quiet=args.quiet,
+                )
+                save_rgb_image(
+                    img_arrays_sub[0],
+                    image_dir / f"episode_{episode_idx}_rgb.png",
+                    quiet=args.quiet,
+                )
+                save_depth_image(
+                    depth_arrays_sub[0],
+                    depth_dir / f"episode_{episode_idx}_depth.png",
+                    quiet=args.quiet,
+                )
+                save_point_cloud_ply(
+                    point_cloud_arrays_sub[0],
+                    point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
+                    quiet=args.quiet,
+                )
+                save_point_cloud_ply(
+                    point_cloud_no_robot_arrays_sub[0],
+                    point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
+                    quiet=args.quiet,
+                )
             # merge episode data into dataset
             episode_ends_arrays.append(
                 copy.deepcopy(total_count)
@@ -254,6 +258,51 @@ def main(args):
                 )
             
             episode_idx += 1
+
+            # --- periodic checkpoint: validate & save a checkpoint every `checkpoint_every` episodes ---
+            if args.checkpoint_every > 0 and (episode_idx % args.checkpoint_every == 0):
+                try:
+                    ck_zarr_dir = pathlib.Path(args.save_dir) / f"{task_name}_{args.camera_name}_checkpoint.zarr"
+                    ck_root = zarr.group(ck_zarr_dir)
+                    ck_data = ck_root.create_group("data", overwrite=True)
+                    ck_meta = ck_root.create_group("meta", overwrite=True)
+
+                    # stack current collected lists (do not modify originals)
+                    ck_img = np.stack(img_arrays, axis=0) if len(img_arrays) > 0 else np.empty((0,))
+                    if ck_img.size and ck_img.shape[1] == 3:
+                        ck_img = np.transpose(ck_img, (0, 2, 3, 1))
+                    ck_depth = np.stack(depth_arrays, axis=0) if len(depth_arrays) > 0 else np.empty((0,))
+                    ck_point_cloud = np.stack(point_cloud_arrays, axis=0) if len(point_cloud_arrays) > 0 else np.empty((0,))
+                    ck_point_cloud_no_robot = np.stack(point_cloud_no_robot_arrays, axis=0) if len(point_cloud_no_robot_arrays) > 0 else np.empty((0,))
+                    ck_robot_state = np.stack(robot_state_arrays, axis=0) if len(robot_state_arrays) > 0 else np.empty((0,))
+                    ck_action = np.stack(action_arrays, axis=0) if len(action_arrays) > 0 else np.empty((0,))
+                    ck_episode_ends = np.array(episode_ends_arrays)
+
+                    compressor_ck = zarr.Blosc(cname="zstd", clevel=3, shuffle=1)
+                    if ck_img.size:
+                        ck_data.create_dataset("images", data=ck_img, dtype="uint8", compressor=compressor_ck)
+                    if ck_depth.size:
+                        ck_data.create_dataset("depth", data=ck_depth, dtype="float32", compressor=compressor_ck)
+                    if ck_point_cloud.size:
+                        ck_data.create_dataset("point_clouds", data=ck_point_cloud, dtype="float32", compressor=compressor_ck)
+                    if ck_point_cloud_no_robot.size:
+                        ck_data.create_dataset("point_clouds_no_robot", data=ck_point_cloud_no_robot, dtype="float32", compressor=compressor_ck)
+                    if ck_robot_state.size:
+                        ck_data.create_dataset("robot_states", data=ck_robot_state, dtype="float32", compressor=compressor_ck)
+                    if ck_action.size:
+                        ck_data.create_dataset("actions", data=ck_action, dtype="float32", compressor=compressor_ck)
+                    ck_meta.create_dataset("episode_ends", data=ck_episode_ends, dtype="int64", compressor=compressor_ck)
+
+                    Logger.log_info(f"Checkpoint saved and validating: {ck_zarr_dir}")
+                    ck_dataset = MetaWorldDataset(
+                        data_dir=ck_zarr_dir,
+                        split="custom",
+                        custom_split_size=max(10, episode_idx // 10),
+                    )
+                    ck_dataset.print_info()
+                except Exception as e:
+                    Logger.log_info(f"Checkpoint validation failed: {e}")
+
 
     # Merge data
     img_arrays = np.stack(img_arrays, axis=0)
@@ -385,4 +434,10 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=10,
+        help="Run validation and save visualizations every N episodes (default 10). Set 1 to save every episode, 0 to disable.",
+    )
     main(parser.parse_args())

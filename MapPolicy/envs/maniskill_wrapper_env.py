@@ -242,8 +242,12 @@ class ManiSkillEnv(gymnasium.Env):
         point_cloud = np.concatenate([xyz, rgb], axis=-1)
         return point_cloud, valid_mask, pc
 
-    def get_point_cloud(self) -> np.ndarray:
-        """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。"""
+    def get_point_cloud(self, filter_table_workspace: bool = False) -> np.ndarray:
+        """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。
+
+        Args:
+            filter_table_workspace: 是否过滤名称为 table-workspace 的点，默认过滤。
+        """
         point_cloud, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
 
         seg = self._to_numpy(pc_src["segmentation"])
@@ -262,8 +266,18 @@ class ManiSkillEnv(gymnasium.Env):
             and "ground" in str(getattr(obj, "name", "")).lower()
         }
 
-        if ground_actor_ids:
-            keep_mask = (~np.isin(seg, np.array(sorted(ground_actor_ids), dtype=seg.dtype))) & valid_mask
+        table_workspace_ids = {
+            int(obj_id)
+            for obj_id, obj in seg_map.items()
+            if str(getattr(obj, "name", "")).lower() == "table-workspace"
+        }
+
+        remove_ids = set(ground_actor_ids)
+        if filter_table_workspace:
+            remove_ids |= table_workspace_ids
+
+        if remove_ids:
+            keep_mask = (~np.isin(seg, np.array(sorted(remove_ids), dtype=seg.dtype))) & valid_mask
         else:
             keep_mask = valid_mask
 
@@ -273,13 +287,16 @@ class ManiSkillEnv(gymnasium.Env):
         )
         return point_cloud.astype(np.float32)
 
-    def get_point_cloud_no_robot(self) -> np.ndarray:
+    def get_point_cloud_no_robot(self, filter_table_workspace: bool = True) -> np.ndarray:
         """基于 ManiSkill 官方 Actor/Link 语义过滤机器人点云。
 
         规则：
         - 从 env.unwrapped.segmentation_id_map 中收集所有 Link 的 segmentation id
         - pointcloud['segmentation'] 中属于这些 Link id 的点视为机器人点并删除
         - Actor 与背景点默认保留
+
+        Args:
+            filter_table_workspace: 是否过滤名称为 table-workspace 的点，默认过滤。
         """
         full, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
         raw_valid_count = int(np.sum(valid_mask))
@@ -309,7 +326,15 @@ class ManiSkillEnv(gymnasium.Env):
             and "ground" in str(getattr(obj, "name", "")).lower()
         }
 
+        table_workspace_ids = {
+            int(obj_id)
+            for obj_id, obj in seg_map.items()
+            if str(getattr(obj, "name", "")).lower() == "table-workspace"
+        }
+
         remove_ids = link_ids | ground_actor_ids
+        if filter_table_workspace:
+            remove_ids |= table_workspace_ids
 
         if remove_ids:
             keep_mask = (~np.isin(seg, np.array(sorted(remove_ids), dtype=seg.dtype))) & valid_mask
