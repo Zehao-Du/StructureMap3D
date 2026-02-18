@@ -11,7 +11,7 @@ from torchvision.transforms import Normalize
 class CLIPEncoder(nn.Module):
     def __init__(self, model_name, freeze=True):
         super(CLIPEncoder, self).__init__()
-        self.model, self.preprocess = clip.load("/inspire/hdd/project/robot-dna/baojiachun-CZXS25130063/zehao/.cache/clip/ViT-B-32.pt")
+        self.model, self.preprocess = clip.load(model_name)
         # see: https://github.com/openai/CLIP/blob/main/clip/clip.py line 79
         self.preprocess = Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
         self.feature_dim = {

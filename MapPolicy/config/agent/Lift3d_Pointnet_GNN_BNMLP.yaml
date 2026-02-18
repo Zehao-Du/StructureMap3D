@@ -17,8 +17,9 @@ instantiate_config:
     num_layers: 6
     num_heads: 24
   loss_map_construction:
-    _target_: MapPolicy.loss.point_cloud_complementation.unidirectional_chamfer_loss
+    _target_: MapPolicy.loss.point_cloud_complementation.metaworld_frust_masked_chamfer_loss
     _partial_: true
+    camera_name: ${camera_name}
   policy_hidden_dims: [256, 256, 256]
   policy_nonlinearty: relu 
   policy_dropout_rate: 0.1
