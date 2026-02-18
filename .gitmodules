@@ -3,4 +3,4 @@
 	url = https://github.com/yanx27/Pointnet_Pointnet2_pytorch.git
 [submodule "MapPolicy/models/LIFT3D"]
 	path = MapPolicy/models/LIFT3D
-	url = https://github.com/PKU-HMI-Lab/LIFT3D.git
+	url = https://github.com/Zehao-Du/LIFT3D
