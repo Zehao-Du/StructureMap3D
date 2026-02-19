@@ -25,6 +25,8 @@ from MapPolicy.dataset.metaworld_dataset import MetaWorldDataset
 from MapPolicy.envs.maniskill_wrapper_env import ManiSkillEnv
 from MapPolicy.helpers.Common import (
     save_video_imageio,
+    save_rgb_image,
+    save_point_cloud_ply,
 )
 from MapPolicy.helpers.Logger import Logger
 
@@ -187,11 +189,34 @@ def main(args):
         / args.task_id
         / args.camera_name
     )
-    video_dir.mkdir(parents=True, exist_ok=True)
+    image_dir = (
+        pathlib.Path(args.save_dir)
+        / "visualized_data"
+        / "images"
+        / args.task_id
+        / args.camera_name
+    )
+    point_cloud_dir = (
+        pathlib.Path(args.save_dir)
+        / "visualized_data"
+        / "point_clouds"
+        / args.task_id
+        / args.camera_name
+    )
+    point_cloud_no_robot_dir = (
+        pathlib.Path(args.save_dir)
+        / "visualized_data"
+        / "point_clouds_no_robot"
+        / args.task_id
+        / args.camera_name
+    )
+    
+    for d in [video_dir, image_dir, point_cloud_dir, point_cloud_no_robot_dir]:
+        d.mkdir(parents=True, exist_ok=True)
 
-    if args.control_mode != "pd_ee_delta_pos":
+    if args.control_mode != "pd_ee_delta_pose":
         Logger.log_warning(
-            "Current pipeline is designed for replay conversion to pd_ee_delta_pos. "
+            "Current pipeline is designed for replay conversion to pd_ee_delta_pose. "
             f"Received target mode={args.control_mode}."
         )
 
@@ -325,13 +350,32 @@ def main(args):
         if args.quiet:
             process_bar.update(1)
 
-        # save visualized data (full video only)
+        # save visualized data
         sample_video_array = np.stack(img_arrays_sub, axis=0)
-        save_video_imageio(
-            sample_video_array,
-            video_dir / f"episode_{episode_idx}.mp4",
-            quiet=args.quiet,
+        save_visuals_now = (
+            args.checkpoint_every <= 1 or (args.checkpoint_every > 0 and episode_idx % args.checkpoint_every == 0)
         )
+        if save_visuals_now:
+            save_video_imageio(
+                sample_video_array,
+                video_dir / f"episode_{episode_idx}.mp4",
+                quiet=args.quiet,
+            )
+            save_rgb_image(
+                img_arrays_sub[0],
+                image_dir / f"episode_{episode_idx}_rgb.png",
+                quiet=args.quiet,
+            )
+            save_point_cloud_ply(
+                point_cloud_arrays_sub[0],
+                point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
+                quiet=args.quiet,
+            )
+            save_point_cloud_ply(
+                point_cloud_no_robot_arrays_sub[0],
+                point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
+                quiet=args.quiet,
+            )
 
         episode_ends_arrays.append(copy.deepcopy(total_count))
         img_arrays.extend(copy.deepcopy(img_arrays_sub))
@@ -363,6 +407,36 @@ def main(args):
                 ),
                 "green",
             )
+        
+        # Periodic checkpoint
+        if args.checkpoint_every > 0 and (episode_idx + 1) % args.checkpoint_every == 0:
+            try:
+                ck_zarr_dir = pathlib.Path(args.save_dir) / f"{args.task_id}_{args.camera_name}_checkpoint.zarr"
+                ck_root = zarr.group(ck_zarr_dir)
+                ck_data = ck_root.create_group("data", overwrite=True)
+                ck_meta = ck_root.create_group("meta", overwrite=True)
+                
+                ck_img = np.stack(img_arrays, axis=0)
+                if ck_img.ndim == 4 and ck_img.shape[1] == 3:
+                    ck_img = np.transpose(ck_img, (0, 2, 3, 1))
+                
+                compressor_ck = zarr.Blosc(cname="zstd", clevel=3, shuffle=1)
+                ck_data.create_dataset("images", data=ck_img, dtype="uint8", compressor=compressor_ck)
+                ck_data.create_dataset("point_clouds", data=np.stack(point_cloud_arrays, axis=0), dtype="float32", compressor=compressor_ck)
+                ck_data.create_dataset("point_clouds_no_robot", data=np.stack(point_cloud_no_robot_arrays, axis=0), dtype="float32", compressor=compressor_ck)
+                ck_data.create_dataset("robot_states", data=np.stack(robot_state_arrays, axis=0), dtype="float32", compressor=compressor_ck)
+                ck_data.create_dataset("actions", data=np.stack(action_arrays, axis=0), dtype="float32", compressor=compressor_ck)
+                ck_meta.create_dataset("episode_ends", data=np.array(episode_ends_arrays), dtype="int64", compressor=compressor_ck)
+                
+                Logger.log_info(f"Checkpoint saved and validating: {ck_zarr_dir}")
+                ck_dataset = MetaWorldDataset(
+                    data_dir=ck_zarr_dir,
+                    split="custom",
+                    custom_split_size=max(1, (episode_idx + 1) // 10),
+                )
+                ck_dataset.print_info()
+            except Exception as e:
+                Logger.log_info(f"Checkpoint validation failed: {e}")
 
         episode_idx += 1
 
@@ -490,6 +564,7 @@ if __name__ == "__main__":
     parser.add_argument("--episode-length", type=int, default=200)
     parser.add_argument("--mp-num-procs", type=int, default=1)
     parser.add_argument("--replay-num-envs", type=int, default=1)
+    parser.add_argument("--checkpoint-every", type=int, default=10)
     parser.add_argument(
         "--save-dir",
         type=str,
