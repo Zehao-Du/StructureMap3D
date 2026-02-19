@@ -138,29 +138,10 @@ class ManiSkillEnv(gymnasium.Env):
                     return False
         return False
 
-    def _read_camera_tensor(self, key: str) -> Optional[np.ndarray]:
-        obs = self._last_raw_obs
-        if not isinstance(obs, dict):
-            return None
-        sensor_data = obs.get("sensor_data", None)
-        if not isinstance(sensor_data, dict):
-            return None
-
-        # 先读指定 camera_name；若不存在，退化到第一个相机。
-        cam_data = sensor_data.get(self.camera_name, None)
-        if not isinstance(cam_data, dict) and len(sensor_data) > 0:
-            cam_data = next(iter(sensor_data.values()))
-        if not isinstance(cam_data, dict):
-            return None
-
-        if key not in cam_data:
-            return None
-        return self._to_numpy(cam_data[key])
-
     def _build_obs_dict(self) -> dict[str, Any]:
         image = self.get_rgb()
         robot_state = self.get_robot_state()
-        raw_state = robot_state.copy()
+        raw_state = self.get_raw_state()
         point_cloud = self.get_point_cloud()
         point_cloud_no_robot = self.get_point_cloud_no_robot()
 
@@ -177,17 +158,22 @@ class ManiSkillEnv(gymnasium.Env):
     # Core getters
     # -----------------------------
     def get_robot_state(self) -> np.ndarray:
-        """Extract robot_state vector from obs.
-
-        Minimal implementation: try common keys; if not present raise NotImplementedError.
-        """
+        """Extract [tcp_pos(3), gripper_width(1)] from ManiSkill 3 observation."""
         obs = self._last_raw_obs
-        if isinstance(obs, dict):
-            if "agent" in obs:
-                return self._flatten_to_1d(obs["agent"]).astype(np.float32)
-            if "state" in obs:
-                return self._flatten_to_1d(obs["state"]).astype(np.float32)
-        return np.zeros((0,), dtype=np.float32)
+        # tcp_pose is in 'extra', qpos is in 'agent'
+        tcp_pos = self._to_numpy(obs["extra"]["tcp_pose"])[..., :3]
+        qpos = self._to_numpy(obs["agent"]["qpos"])
+        # qpos is (9,) after squeeze. Panda gripper are last two dimensions.
+        gripper_width = qpos[..., -1:] + qpos[..., -2:-1]
+        state = np.concatenate([tcp_pos.reshape(-1), gripper_width.reshape(-1)], axis=-1)
+        return state.astype(np.float32)
+
+    def get_raw_state(self) -> np.ndarray:
+        """Return concatenated agent and extra observations vector."""
+        obs = self._last_raw_obs
+        agent_flat = self._flatten_to_1d(obs["agent"])
+        extra_flat = self._flatten_to_1d(obs["extra"])
+        return np.concatenate([agent_flat, extra_flat]).astype(np.float32)
 
     def get_rgb(self) -> np.ndarray:
         """Return RGB image (H, W, 3) uint8 when available.
@@ -216,26 +202,15 @@ class ManiSkillEnv(gymnasium.Env):
         return rgb
         
     def _build_full_point_cloud_and_mask(self):
-        """从 ManiSkill pointcloud 字典中读取 (xyzrgb) 及有效点 mask。
-
-        约定：
-        - obs['pointcloud']['xyzw'] 形状为 (N,4)，w>0 为有效点
-        - obs['pointcloud']['rgb'] 形状为 (N,3)
-        """
-        obs = self._last_raw_obs
-        if not isinstance(obs, dict) or "pointcloud" not in obs:
-            raise RuntimeError("Pointcloud observation not found. Please use obs_mode='pointcloud'.")
-
-        pc = obs["pointcloud"]
+        """Standard ManiSkill 3 pointcloud extractor (xyzrgb)."""
+        pc = self._last_raw_obs["pointcloud"]
         xyzw = self._to_numpy(pc["xyzw"]).astype(np.float32)
         rgb = self._to_numpy(pc["rgb"]).astype(np.float32)
 
         xyz = xyzw[..., :3]
-        if xyzw.shape[-1] >= 4:
-            valid_mask = xyzw[..., 3] > 0
-        else:
-            valid_mask = np.ones((xyz.shape[0],), dtype=bool)
-
+        # w > 0 means valid point in SAPIEN
+        valid_mask = xyzw[..., 3] > 0
+        
         if rgb.max() <= 1.01:
             rgb = rgb * 255.0
         rgb = np.clip(rgb, 0, 255).astype(np.float32)
@@ -243,108 +218,57 @@ class ManiSkillEnv(gymnasium.Env):
         point_cloud = np.concatenate([xyz, rgb], axis=-1)
         return point_cloud, valid_mask, pc
 
-    def get_point_cloud(self, filter_table_workspace: bool = True) -> np.ndarray:
-        """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。
-
-        Args:
-            filter_table_workspace: 是否过滤名称为 table-workspace 的点，默认过滤。
-        """
-        point_cloud, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
-
-        seg = self._to_numpy(pc_src["segmentation"])
-        seg = np.asarray(seg)
-        if seg.ndim == 2:
-            seg = seg[:, 0]
-        seg = seg.reshape(-1)
-
+    def _get_segmentation_ids(self):
+        """Internal helper to identify IDs for filtering or robot masking."""
         base = getattr(self.env, "unwrapped", self.env)
-        seg_map = getattr(base, "segmentation_id_map", None)
-        seg_map = seg_map or {}
-        ground_actor_ids = {
-            int(obj_id)
-            for obj_id, obj in seg_map.items()
-            if isinstance(obj, Actor)
-            and "ground" in str(getattr(obj, "name", "")).lower()
-        }
+        seg_map = getattr(base, "segmentation_id_map", {})
+        
+        link_ids = set()
+        ground_ids = set()
+        table_workspace_ids = set()
+        
+        for obj_id, obj in seg_map.items():
+            name = str(getattr(obj, "name", "")).lower()
+            obj_id = int(obj_id)
+            # Use Link for robot components (Panda/Gripper links)
+            if isinstance(obj, Link) and not isinstance(obj, Actor):
+                link_ids.add(obj_id)
+            if isinstance(obj, Actor):
+                if "ground" in name:
+                    ground_ids.add(obj_id)
+                elif "table-workspace" in name:
+                    table_workspace_ids.add(obj_id)
+        return link_ids, ground_ids, table_workspace_ids
 
-        table_workspace_ids = {
-            int(obj_id)
-            for obj_id, obj in seg_map.items()
-            if str(getattr(obj, "name", "")).lower() == "table-workspace"
-        }
+    def get_point_cloud(self, filter_table_workspace: bool = True) -> np.ndarray:
+        """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。"""
+        point_cloud, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
+        seg = self._to_numpy(pc_src["segmentation"]).reshape(-1)
 
-        remove_ids = set(ground_actor_ids)
+        _, ground_ids, table_ids = self._get_segmentation_ids()
+        remove_ids = ground_ids
         if filter_table_workspace:
-            remove_ids |= table_workspace_ids
+            remove_ids |= table_ids
 
-        if remove_ids:
-            keep_mask = (~np.isin(seg, np.array(sorted(remove_ids), dtype=seg.dtype))) & valid_mask
-        else:
-            keep_mask = valid_mask
-
-        point_cloud = point_cloud[keep_mask]
+        keep_mask = (~np.isin(seg, np.array(list(remove_ids), dtype=seg.dtype))) & valid_mask
         point_cloud = PointCloud.point_cloud_sampling(
-            point_cloud, self.num_points, self.point_sample_method
+            point_cloud[keep_mask], self.num_points, self.point_sample_method
         )
         return point_cloud.astype(np.float32)
 
     def get_point_cloud_no_robot(self, filter_table_workspace: bool = True) -> np.ndarray:
-        """基于 ManiSkill 官方 Actor/Link 语义过滤机器人点云。
-
-        规则：
-        - 从 env.unwrapped.segmentation_id_map 中收集所有 Link 的 segmentation id
-        - pointcloud['segmentation'] 中属于这些 Link id 的点视为机器人点并删除
-        - Actor 与背景点默认保留
-
-        Args:
-            filter_table_workspace: 是否过滤名称为 table-workspace 的点，默认过滤。
-        """
+        """基于 ManiSkill 官方 Actor/Link 语义过滤机器人点云。"""
         full, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
-        raw_valid_count = int(np.sum(valid_mask))
+        seg = self._to_numpy(pc_src["segmentation"]).reshape(-1)
 
-        # 读取 segmentation（常见形状 N 或 Nx1）。
-        seg = self._to_numpy(pc_src["segmentation"])
-        seg = np.asarray(seg)
-        if seg.ndim == 2:
-            seg = seg[:, 0]
-        seg = seg.reshape(-1)
-
-        # 官方方式：通过 segmentation_id_map 区分 Actor / Link（Actor 保留，Link 删除）。
-        base = getattr(self.env, "unwrapped", self.env)
-        seg_map = getattr(base, "segmentation_id_map", None)
-        seg_map = seg_map or {}
-
-        link_ids = {
-            int(obj_id)
-            for obj_id, obj in seg_map.items()
-            if isinstance(obj, Link) and not isinstance(obj, Actor)
-        }
-
-        ground_actor_ids = {
-            int(obj_id)
-            for obj_id, obj in seg_map.items()
-            if isinstance(obj, Actor)
-            and "ground" in str(getattr(obj, "name", "")).lower()
-        }
-
-        table_workspace_ids = {
-            int(obj_id)
-            for obj_id, obj in seg_map.items()
-            if str(getattr(obj, "name", "")).lower() == "table-workspace"
-        }
-
-        remove_ids = link_ids | ground_actor_ids
+        link_ids, ground_ids, table_ids = self._get_segmentation_ids()
+        remove_ids = link_ids | ground_ids
         if filter_table_workspace:
-            remove_ids |= table_workspace_ids
+            remove_ids |= table_ids
 
-        if remove_ids:
-            keep_mask = (~np.isin(seg, np.array(sorted(remove_ids), dtype=seg.dtype))) & valid_mask
-        else:
-            keep_mask = valid_mask
-
-        point_cloud = full[keep_mask]
+        keep_mask = (~np.isin(seg, np.array(list(remove_ids), dtype=seg.dtype))) & valid_mask
         point_cloud = PointCloud.point_cloud_sampling(
-            point_cloud, self.num_points, self.point_sample_method
+            full[keep_mask], self.num_points, self.point_sample_method
         )
         return point_cloud.astype(np.float32)
 

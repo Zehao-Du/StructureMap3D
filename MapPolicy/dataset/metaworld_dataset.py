@@ -15,7 +15,7 @@ class MetaWorldDataset(torch.utils.data.Dataset):
     Actions range: [-7.0, 13.0]
     """
 
-    SPLIT_SIZE = {"train": 25, "validation": 5, "custom": None}
+    SPLIT_SIZE = {"train": 50, "validation": 10, "custom": None}
 
     def __init__(self, data_dir, split: str = None, custom_split_size: int = None):
         zarr_root = zarr.open_group(data_dir, mode="r")
