@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import warnings
 from typing import Any, Optional
 
 # 兼容直接脚本运行：
@@ -242,7 +243,7 @@ class ManiSkillEnv(gymnasium.Env):
         point_cloud = np.concatenate([xyz, rgb], axis=-1)
         return point_cloud, valid_mask, pc
 
-    def get_point_cloud(self, filter_table_workspace: bool = False) -> np.ndarray:
+    def get_point_cloud(self, filter_table_workspace: bool = True) -> np.ndarray:
         """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。
 
         Args:
@@ -496,7 +497,20 @@ class ManiSkillEvaluator(Evaluator):
 
                 with torch.no_grad():
                     action = policy(**input_data)
+                if isinstance(action, torch.Tensor):
+                    if torch.isnan(action).any():
+                        warnings.warn(
+                            f"NaN detected in evaluator policy output; action tensor={action.detach().cpu()}. Replacing NaN with 0 and continuing.",
+                            RuntimeWarning,
+                        )
+                        action = torch.nan_to_num(action, nan=0.0)
                 action = action.to("cpu").detach().numpy().squeeze()
+                if np.isnan(action).any():
+                    warnings.warn(
+                        "NaN detected in evaluator action numpy array; replacing NaN with 0 and continuing.",
+                        RuntimeWarning,
+                    )
+                    action = np.nan_to_num(action, nan=0.0)
 
                 obs_dict, reward, terminated, truncated, info = self.env.step(action)
                 rewards += float(reward)
@@ -581,12 +595,12 @@ if __name__ == "__main__":
     faulthandler.enable()
 
     parser = argparse.ArgumentParser(description="Staged debug for ManiSkill wrapper")
-    parser.add_argument("--task_id", type=str, default="PushCube-v1")
+    parser.add_argument("--task_id", type=str, default="PegInsertionSide-v1")
     parser.add_argument("--camera_name", type=str, default="base_camera")
     parser.add_argument("--image_size", type=int, default=480)
     parser.add_argument("--num_points", type=int, default=4096)
     parser.add_argument("--obs_mode", type=str, default="pointcloud")
-    parser.add_argument("--save_dir", type=str, default="/tmp/maniskill_wrapper_debug")
+    parser.add_argument("--save_dir", type=str, default="data2/lirui/maniskill_debug")
     parser.add_argument(
         "--stage",
         type=int,

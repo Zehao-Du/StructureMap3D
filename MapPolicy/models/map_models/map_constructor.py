@@ -36,6 +36,7 @@ MAP_DIM_VOCAB = {
 
     # Maniskill
     "PickCube-v1": [3, 6, 12],
+    "PegInsertionSide-v1": [8, 17, 35],
 } # accumulated dimensions for sizes, positions, rotations
 MAP_CLASS_VOCAB = { 
     "bin-picking": StructureMap_BinPicking,
@@ -49,6 +50,7 @@ MAP_CLASS_VOCAB = {
     "disassemble": StructureMap_Disassemble,
     "hammer": StructureMap_Hammer,
     "PickCube-v1": StructureMap_PickCube,
+    "PegInsertionSide-v1": StructureMap_PegInsertSide,
 }
 
 class ParameterEstimator_SingleFrame(nn.Module):

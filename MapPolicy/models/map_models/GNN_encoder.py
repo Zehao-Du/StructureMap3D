@@ -15,6 +15,7 @@ MAP_NODE_VOCAB = {
     "disassemble": 3,
     "hammer": 3,
     "PickCube-v1": 1,
+    "PegInsertionSide-v1": 3,
 }
 
 # -----------------------------------------------------------------------------

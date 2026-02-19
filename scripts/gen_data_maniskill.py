@@ -482,7 +482,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-id", type=str, default="PickCube-v1")
     parser.add_argument("--camera-name", type=str, default="base_camera")
-    parser.add_argument("--image-size", type=int, default=128)
+    parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")
     parser.add_argument("--control-mode", type=str, default="pd_ee_delta_pos")
     parser.add_argument("--num-points", type=int, default=1024)

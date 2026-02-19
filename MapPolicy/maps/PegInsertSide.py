@@ -9,7 +9,7 @@ import math
 class Target_Block:
     def __init__ (self, sizes, positions, rotations):
         semantic1 = 'target block'
-        semantic2 = 'target area'
+        semantic2 = 'target hole'
         
         Nodes = []
         Edges = []
