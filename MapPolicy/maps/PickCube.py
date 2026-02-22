@@ -5,9 +5,9 @@ from Structure_Primitive import Cuboid
 from base_template import StructureGraph
 
 
-class PickCube:
+class Cube:
     def __init__(self, sizes, positions, rotations):
-        semantic1 = 'pick cube'
+        semantic1 = 'cube'
 
         Nodes = []
         Edges = []
@@ -43,7 +43,7 @@ class StructureMap_PickCube(StructureGraph):
             sizes = self._preprocess_parameters(sizes)
 
         Objects = []
-        Objects.append(PickCube(sizes[:, 0:3], positions[:, 0:3], rotations[:, 0:1*6]))
+        Objects.append(Cube(sizes[:, 0:3], positions[:, 0:3], rotations[:, 0:1*6]))
 
         Nodes = []
         Edges = []

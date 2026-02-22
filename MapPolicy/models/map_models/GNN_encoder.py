@@ -16,6 +16,9 @@ MAP_NODE_VOCAB = {
     "hammer": 3,
     "PickCube-v1": 1,
     "PegInsertionSide-v1": 3,
+    "StackCube-v1": 2,
+    "PlugCharger-v1": 6,
+    "StackPyramid-v1": 3
 }
 
 # -----------------------------------------------------------------------------

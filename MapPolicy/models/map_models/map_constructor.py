@@ -20,6 +20,9 @@ from MapPolicy.maps.ShelfPlace import StructureMap_ShelfPlace
 from MapPolicy.maps.HandInsert import StructureMap_HandInsert
 from MapPolicy.maps.Disassemble import StructureMap_Disassemble
 from MapPolicy.maps.Hammer import StructureMap_Hammer
+from MapPolicy.maps.StackCube import StructureMap_StackCube
+from MapPolicy.maps.PlugCharger import StructureMap_PlugCharger
+from MapPolicy.maps.StackPyramid import StructureMap_StackPyramid
 from MapPolicy.models.clip.clip_encoder import CLIPEncoder
 
 MAP_DIM_VOCAB = {
@@ -37,6 +40,9 @@ MAP_DIM_VOCAB = {
     # Maniskill
     "PickCube-v1": [3, 6, 12],
     "PegInsertionSide-v1": [8, 17, 35],
+    "StackCube-v1": [6, 12, 24],
+    "PlugCharger-v1": [18, 36, 72],
+    "StackPyramid-v1": [9, 18, 36]
 } # accumulated dimensions for sizes, positions, rotations
 MAP_CLASS_VOCAB = { 
     "bin-picking": StructureMap_BinPicking,
@@ -51,6 +57,9 @@ MAP_CLASS_VOCAB = {
     "hammer": StructureMap_Hammer,
     "PickCube-v1": StructureMap_PickCube,
     "PegInsertionSide-v1": StructureMap_PegInsertSide,
+    "StackCube-v1": StructureMap_StackCube,
+    "PlugCharger-v1": StructureMap_PlugCharger,
+    "StackPyramid-v1": StructureMap_StackPyramid
 }
 
 class ParameterEstimator_SingleFrame(nn.Module):
