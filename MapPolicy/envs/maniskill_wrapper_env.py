@@ -519,7 +519,7 @@ if __name__ == "__main__":
     faulthandler.enable()
 
     parser = argparse.ArgumentParser(description="Staged debug for ManiSkill wrapper")
-    parser.add_argument("--task_id", type=str, default="PegInsertionSide-v1")
+    parser.add_argument("--task_id", type=str, default="PlugCharger-v1")
     parser.add_argument("--camera_name", type=str, default="base_camera")
     parser.add_argument("--image_size", type=int, default=480)
     parser.add_argument("--num_points", type=int, default=4096)
