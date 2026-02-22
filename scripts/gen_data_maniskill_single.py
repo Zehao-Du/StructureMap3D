@@ -514,7 +514,7 @@ if __name__ == "__main__":
     os.environ.setdefault("SAPIEN_RENDER_SYSTEM", "egl")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=str, default="PickCube-v1")
+    parser.add_argument("--task-id", type=str, default="StackCube-v1")
     parser.add_argument("--camera-name", type=str, default="base_camera")
     parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")

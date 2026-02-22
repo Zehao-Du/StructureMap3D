@@ -5,9 +5,9 @@ from termcolor import colored
 from MapPolicy.helpers.Logger import Logger
 
 
-class MetaWorldDataset(torch.utils.data.Dataset):
+class ManiskillDataset(torch.utils.data.Dataset):
     """
-    Dataset for Metaworld Benchmark.
+    Dataset for Maniskill Benchmark.
 
     Images range: [0, 255]
     Robot states range: [-1.0, 1.0]
@@ -15,7 +15,7 @@ class MetaWorldDataset(torch.utils.data.Dataset):
     Actions range: [-7.0, 13.0]
     """
 
-    SPLIT_SIZE = {"train": 25, "validation": 5, "custom": None}
+    SPLIT_SIZE = {"train": 90, "validation": 10, "custom": None}
 
     def __init__(self, data_dir, split: str = None, custom_split_size: int = None):
         zarr_root = zarr.open_group(data_dir, mode="r")
@@ -69,7 +69,7 @@ class MetaWorldDataset(torch.utils.data.Dataset):
         return self._dataset_size
 
     def print_info(self):
-        Logger.log_info(f"Metaworld Dataset Info:")
+        Logger.log_info(f"Maniskill Dataset Info:")
         Logger.log_info(
             f'images ({colored(self._images.dtype, "red")}): {colored(self._images.shape, "red")}, range: [{colored(self._images.min(), "red")}, {colored(self._images.max(), "red")}]'
         )
@@ -96,8 +96,8 @@ class MetaWorldDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    data_dir = "data/metaworld/assembly_corner.zarr"
-    dataset = MetaWorldDataset(data_dir, split="custom", custom_split_size=30)
+    data_dir = "data/maniskill/assembly_corner.zarr"
+    dataset = ManiskillDataset(data_dir, split="custom", custom_split_size=30)
     actions = dataset._actions
     dataset.print_info()
     Logger.log_info(dataset._episode_ends[dataset.SPLIT_SIZE["train"] - 1] + 1)
