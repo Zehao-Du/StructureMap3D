@@ -1,7 +1,7 @@
 name: ManiSkill
 
 dataset_instantiate_config:
-  _target_: MapPolicy.dataset.metaworld_dataset.MetaWorldDataset
+  _target_: MapPolicy.dataset.maniskill_dataset.ManiskillDataset
 
 evaluator_instantiate_config:
   _target_: MapPolicy.envs.maniskill_wrapper_env.ManiSkillEvaluator
@@ -9,8 +9,9 @@ evaluator_instantiate_config:
   image_size: ${image_size}
   camera_name: ${camera_name}
   obs_mode: pointcloud
-  control_mode: pd_ee_delta_pose
+  control_mode: pd_joint_pos
   num_points: 1024
+  num_envs: ${evaluation.num_envs}
 
 loss_func:
   _target_: MapPolicy.loss.wrap.smart_loss_func

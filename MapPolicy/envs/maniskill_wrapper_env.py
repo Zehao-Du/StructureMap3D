@@ -335,6 +335,9 @@ class ManiSkillEvaluator(Evaluator):
     接口和 MetaWorldEvaluator 对齐：
     - evaluate 返回 (avg_success, avg_rewards)
     - verbose=True 时保留每条轨迹视频用于 wandb 可视化
+
+    现在支持 ``num_envs`` 参数，用于并行评估多个环境以加速。
+    评估循环会在内部维护一组单环境实例，并且批量执行模型前向。
     """
 
     def __init__(
@@ -351,117 +354,136 @@ class ManiSkillEvaluator(Evaluator):
         point_cloud_camera_names: Optional[list[str]] = None,# No use at current time
         point_sample_method: str = "fps",
         render_mode: Optional[str] = None,
+        num_envs: int = 1,
     ):
         if task_id is None:
             task_id = task_name
         if task_id is None:
             raise ValueError("ManiSkillEvaluator requires either task_id or task_name.")
 
-        self.env = ManiSkillEnv(
-            task_id=task_id,
-            max_episode_length=max_episode_length,
-            image_size=image_size,
-            camera_name=camera_name,
-            obs_mode=obs_mode,
-            control_mode=control_mode,
-            num_points=num_points,
-            point_sample_method=point_sample_method,
-            render_mode=render_mode,
-        )
-        self.env = VideoWrapper(self.env)
+        self.num_envs = num_envs
+        # create a list of independent single-env instances. this is easier than
+        # trying to manage gym.vector semantics in evaluation.
+        self.envs = [
+            ManiSkillEnv(
+                task_id=task_id,
+                max_episode_length=max_episode_length,
+                image_size=image_size,
+                camera_name=camera_name,
+                obs_mode=obs_mode,
+                control_mode=control_mode,
+                num_points=num_points,
+                point_sample_method=point_sample_method,
+                render_mode=render_mode,
+                num_envs=1,
+            )
+            for _ in range(num_envs)
+        ]
+        # video wrapper on each
+        self.envs = [VideoWrapper(e) for e in self.envs]
+        # expose one env for compatibility (used elsewhere?)
+        self.env = self.envs[0]
 
     def evaluate(self, num_episodes, policy, verbose: bool = False):
         task_id = Wrapper.get_wrapper_attr(self.env, "task_id")
+        # policy is assumed to take batched inputs; we'll aggregate observations
 
-        if verbose:
-            success_list, rewards_list = [], []
-            video_steps_list = []
-        else:
-            total_success, total_rewards = 0, 0
+        # bookkeeping for results
+        success_list = []
+        rewards_list = []
+        video_steps_list = []
 
-        for _ in tqdm.tqdm(
-            range(num_episodes),
-            desc=f'Evaluating in ManiSkill <{colored(task_id, "red")}>',
-        ):
-            obs_dict = self.env.reset()
-            truncated = terminated = False
-            rewards = 0.0
-            success = False
+        # helper batch runner that steps a list of envs until each finishes once
+        def _run_batch(envs, policy, verbose):
+            batch_size = len(envs)
+            obs_list = [e.reset() for e in envs]
+            dones = [False] * batch_size
+            rewards = [0.0] * batch_size
+            successes = [False] * batch_size
+            frames = None
 
-            while not truncated and not terminated:
-                obs_img = obs_dict["image"]
-                obs_point_cloud = obs_dict["point_cloud"]
-                obs_point_cloud_no_robot = obs_dict["point_cloud_no_robot"]
-                obs_robot_state = obs_dict["robot_state"]
-
+            while not all(dones):
+                # build batch input for active envs
+                imgs = []
+                pcs = []
+                pc_nrs = []
+                rstates = []
+                texts = []
+                idx_map = []  # mapping from batch index to env index
+                for i, o in enumerate(obs_list):
+                    if dones[i]:
+                        continue
+                    imgs.append(o["image"])
+                    pcs.append(o["point_cloud"])
+                    pc_nrs.append(o["point_cloud_no_robot"])
+                    rstates.append(o["robot_state"])
+                    texts.append(envs[i].text)
+                    idx_map.append(i)
+                if len(imgs) == 0:
+                    break
                 device = next(policy.parameters()).device
-                obs_img_tensor = torch.from_numpy(obs_img).float().unsqueeze(0).to(device)
-                obs_point_cloud_tensor = (
-                    torch.from_numpy(obs_point_cloud).float().unsqueeze(0).to(device)
-                )
-                obs_point_cloud_no_robot_tensor = (
-                    torch.from_numpy(obs_point_cloud_no_robot)
-                    .float()
-                    .unsqueeze(0)
-                    .to(device)
-                )
-                obs_robot_state_tensor = (
-                    torch.from_numpy(obs_robot_state).float().unsqueeze(0).to(device)
-                )
+                imgs_t = torch.from_numpy(np.stack(imgs)).float().to(device).permute(0, 3, 1, 2)
+                pcs_t = torch.from_numpy(np.stack(pcs)).float().to(device)
+                pc_nrs_t = torch.from_numpy(np.stack(pc_nrs)).float().to(device)
+                rstates_t = torch.from_numpy(np.stack(rstates)).float().to(device)
 
-                obs_img_tensor = obs_img_tensor.permute(0, 3, 1, 2)
-                batch_size = obs_img_tensor.shape[0]
                 input_data = {
-                    "images": obs_img_tensor,
-                    "point_clouds": obs_point_cloud_tensor,
-                    "point_cloud_no_robot": obs_point_cloud_no_robot_tensor,
-                    "robot_states": obs_robot_state_tensor,
-                    "texts": [self.env.text] * batch_size,
+                    "images": imgs_t,
+                    "point_clouds": pcs_t,
+                    "point_cloud_no_robot": pc_nrs_t,
+                    "robot_states": rstates_t,
+                    "texts": texts,
                 }
-
                 with torch.no_grad():
-                    action = policy(**input_data)
-                if isinstance(action, torch.Tensor):
-                    if torch.isnan(action).any():
-                        warnings.warn(
-                            f"NaN detected in evaluator policy output; action tensor={action.detach().cpu()}. Replacing NaN with 0 and continuing.",
-                            RuntimeWarning,
-                        )
-                        action = torch.nan_to_num(action, nan=0.0)
-                action = action.to("cpu").detach().numpy().squeeze()
-                if np.isnan(action).any():
-                    warnings.warn(
-                        "NaN detected in evaluator action numpy array; replacing NaN with 0 and continuing.",
-                        RuntimeWarning,
-                    )
-                    action = np.nan_to_num(action, nan=0.0)
+                    actions_batch = policy(**input_data)
+                if isinstance(actions_batch, torch.Tensor) and torch.isnan(actions_batch).any():
+                    warnings.warn("NaNs in batch policy output; zeroing", RuntimeWarning)
+                    actions_batch = torch.nan_to_num(actions_batch, nan=0.0)
+                actions_np = actions_batch.to("cpu").detach().numpy()
 
-                obs_dict, reward, terminated, truncated, info = self.env.step(action)
-                rewards += float(reward)
-                success = success or Wrapper.get_wrapper_attr(self.env, "_extract_success")(info)
+                # step each env
+                for bi, env_idx in enumerate(idx_map):
+                    action = actions_np[bi]
+                    if np.isnan(action).any():
+                        action = np.nan_to_num(action, nan=0.0)
+
+                    o, r, t, tr, info = envs[env_idx].step(action)
+                    obs_list[env_idx] = o
+                    rewards[env_idx] += float(r)
+                    successes[env_idx] = (
+                        successes[env_idx]
+                        or Wrapper.get_wrapper_attr(envs[env_idx], "_extract_success")(
+                            info
+                        )
+                    )
+                    if t or tr:
+                        dones[env_idx] = True
 
             if verbose:
-                video_steps_list.append(self.env.get_frames().transpose(0, 3, 1, 2))
-                success_list.append(success)
-                rewards_list.append(rewards)
-            else:
-                total_success += int(success)
-                total_rewards += rewards
+                frames = [e.get_frames().transpose(0, 3, 1, 2) for e in envs]
+            return successes, rewards, frames
 
+        idx = 0
+        pbar = tqdm.tqdm(total=num_episodes, desc=f"Evaluating ManiSkill <{colored(task_id, 'red')}>")
+        while idx < num_episodes:
+            batch = min(self.num_envs, num_episodes - idx)
+            succs, rews, frs = _run_batch(self.envs[:batch], policy, verbose)
+            success_list.extend(succs)
+            rewards_list.extend(rews)
+            if verbose:
+                for env_frames in frs:
+                    video_steps_list.append(env_frames)
+            idx += batch
+            pbar.update(batch)
+        pbar.close()
+
+        avg_success = sum(success_list) / num_episodes
+        avg_rewards = sum(rewards_list) / num_episodes
         if verbose:
-            return_value = (
-                sum(success_list) / num_episodes,
-                sum(rewards_list) / num_episodes,
-            )
             self.success_list = success_list
             self.rewards_list = rewards_list
             self.video_steps_list = video_steps_list
-        else:
-            avg_success = total_success / num_episodes
-            avg_rewards = total_rewards / num_episodes
-            return_value = avg_success, avg_rewards
-
-        return return_value
+        return avg_success, avg_rewards
 
     def callback_verbose(self, wandb_logger):
         import plotly.express as px

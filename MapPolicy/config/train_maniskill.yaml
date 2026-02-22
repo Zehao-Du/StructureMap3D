@@ -5,7 +5,7 @@ defaults:
 seed: 0
 device: cuda:0
 
-task_name: PickCube-v1
+task_name: StackCube-v1
 camera_name: base_camera
 image_size: 128
 
@@ -13,7 +13,7 @@ project_root: /data2/lirui/StructureMap3D
 dataset_dir: ${project_root}/data_new/maniskill/${task_name}_${camera_name}.zarr
 
 dataloader:
-  batch_size: 64
+  batch_size: 128
   num_workers: 0
   shuffle: True
   drop_last: True
@@ -24,7 +24,7 @@ lambda_physical: 1
 
 train:
   clip_grad_value: 1.0
-  learning_rate: 1e-4
+  learning_rate: 2e-4
   num_epochs: 600
   scheduler_instantiate_config:
     _target_: MapPolicy.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
@@ -35,9 +35,13 @@ train:
 
 evaluation:
   num_skip_epochs: 0
-  validation_frequency_epochs: 10
+  validation_frequency_epochs: 1
   validation_trajs_num: 10
-  save_best_model: True
+  save_best_model: False
+  # number of parallel environments used during evaluation; set >1 to
+  # batch several episodes together and speed up eval (requires evaluator
+  # implementation that supports num_envs, which is available).
+  num_envs: 10
 
 wandb:
   project: MapPolicy
