@@ -27,6 +27,16 @@ from MapPolicy.envs.evaluator import Evaluator
 from MapPolicy.helpers.gymnasium import VideoWrapper
 from MapPolicy.helpers.graphics import PointCloud
 
+MANISKILL_LANGUAGE_DESCRIPTION = {
+    "PickCube-v1": "Grasp a red cube with the Panda robot and move it to a target goal position.",
+    "PegInsertionSide-v1": "Pick up a orange-white peg and insert the orange end into the box with a hole in it.",
+    "PlaceSphere-v1": "Place the sphere into the shallow bin.",
+    "PlugCharger-v1": "Pick up the charger and plug it into the socket.", # Official: The robot must pick up one of the misplaced shapes on the board/kit and insert it into the correct empty slot.
+    "PullCubeTool-v1": "Given an L-shaped tool that is within the reach of the robot, leverage the tool to pull a cube that is out of it's reach",
+    "StackCube-v1": "Pick up a red cube and stack it on top of a green cube",
+    "StackPyramid-v1": "Pick up a red cube, place it next to the green cube, and stack the blue cube on top of the red and green cubes"
+}
+
 class ManiSkillEnv(gymnasium.Env):
     """ManiSkill environment adapter.
 
@@ -88,7 +98,7 @@ class ManiSkillEnv(gymnasium.Env):
         self.observation_space = self.env.observation_space
 
         # Optional: a simple language/text field for downstream code parity
-        self.text = task_id
+        self.text = MANISKILL_LANGUAGE_DESCRIPTION[task_id]
 
         raw_obs, info = self.env.reset()
         raw_obs = self._squeeze_batch_dim(raw_obs)
