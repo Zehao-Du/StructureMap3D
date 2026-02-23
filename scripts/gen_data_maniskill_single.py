@@ -31,7 +31,7 @@ _project_root = os.path.abspath(os.path.join(_current_dir, ".."))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from MapPolicy.dataset.metaworld_dataset import MetaWorldDataset
+from MapPolicy.dataset.maniskill_dataset import ManiskillDataset
 from MapPolicy.envs.maniskill_wrapper_env import ManiSkillEnv
 from MapPolicy.helpers.Common import (
     save_point_cloud_ply,
@@ -291,7 +291,6 @@ def main(args):
             obs_dict = rec["obs"]
             obs_img = obs_dict["image"]
             obs_robot_state = obs_dict["robot_state"]
-            obs_raw_state = obs_dict["raw_state"]
             obs_point_cloud = obs_dict["point_cloud"]
             obs_point_cloud_no_robot = obs_dict["point_cloud_no_robot"]
 
@@ -303,7 +302,6 @@ def main(args):
             point_cloud_arrays_sub.append(obs_point_cloud)
             point_cloud_no_robot_arrays_sub.append(obs_point_cloud_no_robot)
             robot_state_arrays_sub.append(obs_robot_state)
-            raw_state_arrays_sub.append(obs_raw_state)
             action_arrays_sub.append(action)
             reward_arrays_sub.append(reward)
             env_info_arrays_sub.append(env_info)
@@ -379,7 +377,6 @@ def main(args):
         point_cloud_arrays.extend(copy.deepcopy(point_cloud_arrays_sub))
         point_cloud_no_robot_arrays.extend(copy.deepcopy(point_cloud_no_robot_arrays_sub))
         robot_state_arrays.extend(copy.deepcopy(robot_state_arrays_sub))
-        raw_state_arrays.extend(copy.deepcopy(raw_state_arrays_sub))
         action_arrays.extend(copy.deepcopy(action_arrays_sub))
         reward_arrays.extend(copy.deepcopy(reward_arrays_sub))
         env_info_arrays.extend(copy.deepcopy(env_info_arrays_sub))
@@ -390,7 +387,6 @@ def main(args):
             point_cloud_arrays_sub,
             point_cloud_no_robot_arrays_sub,
             robot_state_arrays_sub,
-            raw_state_arrays_sub,
             action_arrays_sub,
             reward_arrays_sub,
             env_info_arrays_sub,
@@ -418,7 +414,6 @@ def main(args):
     point_cloud_arrays = np.stack(point_cloud_arrays, axis=0).astype(np.float32)
     point_cloud_no_robot_arrays = np.stack(point_cloud_no_robot_arrays, axis=0).astype(np.float32)
     robot_state_arrays = np.stack(robot_state_arrays, axis=0).astype(np.float32)
-    raw_state_arrays = np.stack(raw_state_arrays, axis=0).astype(np.float32)
     action_arrays = np.stack(action_arrays, axis=0).astype(np.float32)
     reward_arrays = np.stack(reward_arrays, axis=0)
     episode_ends_arrays = np.array(episode_ends_arrays)
@@ -490,7 +485,6 @@ def main(args):
         point_cloud_arrays,
         point_cloud_no_robot_arrays,
         robot_state_arrays,
-        raw_state_arrays,
         action_arrays,
         reward_arrays,
         episode_ends_arrays,
@@ -499,7 +493,7 @@ def main(args):
     del zarr_root, zarr_data, zarr_meta
     Logger.log_info("Delete the data in memory")
 
-    dataset = MetaWorldDataset(
+    dataset = ManiskillDataset(
         data_dir=zarr_dir,
         split="custom",
         custom_split_size=custom_split_size,
@@ -514,13 +508,13 @@ if __name__ == "__main__":
     os.environ.setdefault("SAPIEN_RENDER_SYSTEM", "egl")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=str, default="StackCube-v1")
+    parser.add_argument("--task-id", type=str, default="PickCube-v1")
     parser.add_argument("--camera-name", type=str, default="base_camera")
-    parser.add_argument("--image-size", type=int, default=128)
+    parser.add_argument("--image-size", type=int, default=512)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")
     parser.add_argument("--control-mode", type=str, default="pd_joint_pos")
     parser.add_argument("--num-points", type=int, default=1024)
-    parser.add_argument("--num-episodes", type=int, default=100)
+    parser.add_argument("--num-episodes", type=int, default=3)
     parser.add_argument("--episode-length", type=int, default=200)
     parser.add_argument(
         "--save-dir",

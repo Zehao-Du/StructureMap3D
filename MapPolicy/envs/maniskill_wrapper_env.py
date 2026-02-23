@@ -151,14 +151,12 @@ class ManiSkillEnv(gymnasium.Env):
     def _build_obs_dict(self) -> dict[str, Any]:
         image = self.get_rgb()
         robot_state = self.get_robot_state()
-        raw_state = self.get_raw_state()
         point_cloud = self.get_point_cloud()
         point_cloud_no_robot = self.get_point_cloud_no_robot()
 
         obs_dict = {
             "image": image,
             "robot_state": robot_state,
-            "raw_state": raw_state,
             "point_cloud": point_cloud,
             "point_cloud_no_robot": point_cloud_no_robot,
         }
@@ -168,48 +166,29 @@ class ManiSkillEnv(gymnasium.Env):
     # Core getters
     # -----------------------------
     def get_robot_state(self) -> np.ndarray:
-        """Extract [tcp_pos(3), gripper_width(1)] from ManiSkill 3 observation."""
+        """Extract [tcp_pos(7), gripper_width(1)] from ManiSkill 3 observation."""
         obs = self._last_raw_obs
         # tcp_pose is in 'extra', qpos is in 'agent'
-        tcp_pos = self._to_numpy(obs["extra"]["tcp_pose"])[..., :3]
+        tcp_pos = self._to_numpy(obs["extra"]["tcp_pose"])
         qpos = self._to_numpy(obs["agent"]["qpos"])
         # qpos is (9,) after squeeze. Panda gripper are last two dimensions.
         gripper_width = qpos[..., -1:] + qpos[..., -2:-1]
         state = np.concatenate([tcp_pos.reshape(-1), gripper_width.reshape(-1)], axis=-1)
         return state.astype(np.float32)
 
-    def get_raw_state(self) -> np.ndarray:
-        """Return concatenated agent and extra observations vector."""
-        obs = self._last_raw_obs
-        agent_flat = self._flatten_to_1d(obs["agent"])
-        extra_flat = self._flatten_to_1d(obs["extra"])
-        return np.concatenate([agent_flat, extra_flat]).astype(np.float32)
-
     def get_rgb(self) -> np.ndarray:
         """Return RGB image (H, W, 3) uint8 when available.
 
-        Minimal implementation: try common keys; if not present raise NotImplementedError.
+        ManiSkill always renders a ``torch.uint8`` tensor shaped
+        ``[1, H, W, 3]``.  After conversion we simply squeeze the batch
+        dimension and drop any extra channels – no branching on dtype is
+        required.
         """
         rendered = self.env.render()
-        if rendered is None:
-            return np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         rgb = self._to_numpy(rendered)
-
-        # ManiSkill 在 num_envs=1 时，部分路径会返回 (1, H, W, C)。
-        # 这里统一压缩为 (H, W, C)，便于后续保存/可视化。
         rgb = self._squeeze_batch_dim(rgb)
 
-        if rgb.ndim == 2:
-            rgb = np.stack([rgb, rgb, rgb], axis=-1)
-        if rgb.ndim == 3 and rgb.shape[-1] > 3:
-            rgb = rgb[..., :3]
-
-        if rgb.dtype != np.uint8:
-            rgb = np.asarray(rgb, dtype=np.float32)
-            if rgb.max() <= 1.01:
-                rgb = rgb * 255.0
-            rgb = np.clip(rgb, 0, 255).astype(np.uint8)
-        return rgb
+        return rgb.astype(np.uint8)
         
     def _build_full_point_cloud_and_mask(self):
         """Standard ManiSkill 3 pointcloud extractor (xyzrgb)."""
@@ -330,8 +309,6 @@ class ManiSkillEnv(gymnasium.Env):
         truncated = truncated or self.cur_step >= self.max_episode_length
 
         obs_dict = self.get_obs()
-        if isinstance(info, dict):
-            info["gripper_proprio"] = obs_dict["raw_state"][:4]
         return obs_dict, reward, terminated, truncated, info
 
     def close(self):
