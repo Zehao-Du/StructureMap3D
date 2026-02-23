@@ -18,7 +18,8 @@ MAP_NODE_VOCAB = {
     "PegInsertionSide-v1": 3,
     "StackCube-v1": 2,
     "PlugCharger-v1": 6,
-    "StackPyramid-v1": 3
+    "StackPyramid-v1": 3,
+    "PullCubeTool-v1": 3
 }
 
 # -----------------------------------------------------------------------------
