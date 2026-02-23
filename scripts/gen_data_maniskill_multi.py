@@ -42,6 +42,8 @@ from MapPolicy.helpers.Common import (
 )
 from MapPolicy.helpers.Logger import Logger
 
+# Need stack zarrs before straight usage of data
+
 
 MP_SOLUTIONS = {
     "DrawTriangle-v1": solveDrawTriangle,
@@ -220,7 +222,6 @@ def main(args):
     point_cloud_arrays = []
     point_cloud_no_robot_arrays = []
     robot_state_arrays = []
-    raw_state_arrays = []
     action_arrays = []
     reward_arrays = []
     episode_ends_arrays = []
@@ -249,7 +250,6 @@ def main(args):
         point_cloud_arrays_sub = []
         point_cloud_no_robot_arrays_sub = []
         robot_state_arrays_sub = []
-        raw_state_arrays_sub = []
         action_arrays_sub = []
         reward_arrays_sub = []
         env_info_arrays_sub = []
@@ -293,7 +293,6 @@ def main(args):
             obs_dict = rec["obs"]
             obs_img = obs_dict["image"]
             obs_robot_state = obs_dict["robot_state"]
-            obs_raw_state = obs_dict["raw_state"]
             obs_point_cloud = obs_dict["point_cloud"]
             obs_point_cloud_no_robot = obs_dict["point_cloud_no_robot"]
 
@@ -305,7 +304,6 @@ def main(args):
             point_cloud_arrays_sub.append(obs_point_cloud)
             point_cloud_no_robot_arrays_sub.append(obs_point_cloud_no_robot)
             robot_state_arrays_sub.append(obs_robot_state)
-            raw_state_arrays_sub.append(obs_raw_state)
             action_arrays_sub.append(action)
             reward_arrays_sub.append(reward)
             env_info_arrays_sub.append(env_info)
@@ -381,7 +379,6 @@ def main(args):
         point_cloud_arrays.extend(copy.deepcopy(point_cloud_arrays_sub))
         point_cloud_no_robot_arrays.extend(copy.deepcopy(point_cloud_no_robot_arrays_sub))
         robot_state_arrays.extend(copy.deepcopy(robot_state_arrays_sub))
-        raw_state_arrays.extend(copy.deepcopy(raw_state_arrays_sub))
         action_arrays.extend(copy.deepcopy(action_arrays_sub))
         reward_arrays.extend(copy.deepcopy(reward_arrays_sub))
         env_info_arrays.extend(copy.deepcopy(env_info_arrays_sub))
@@ -392,7 +389,6 @@ def main(args):
             point_cloud_arrays_sub,
             point_cloud_no_robot_arrays_sub,
             robot_state_arrays_sub,
-            raw_state_arrays_sub,
             action_arrays_sub,
             reward_arrays_sub,
             env_info_arrays_sub,
@@ -420,7 +416,6 @@ def main(args):
     point_cloud_arrays = np.stack(point_cloud_arrays, axis=0).astype(np.float32)
     point_cloud_no_robot_arrays = np.stack(point_cloud_no_robot_arrays, axis=0).astype(np.float32)
     robot_state_arrays = np.stack(robot_state_arrays, axis=0).astype(np.float32)
-    raw_state_arrays = np.stack(raw_state_arrays, axis=0).astype(np.float32)
     action_arrays = np.stack(action_arrays, axis=0).astype(np.float32)
     reward_arrays = np.stack(reward_arrays, axis=0)
     episode_ends_arrays = np.array(episode_ends_arrays)
@@ -492,7 +487,6 @@ def main(args):
         point_cloud_arrays,
         point_cloud_no_robot_arrays,
         robot_state_arrays,
-        raw_state_arrays,
         action_arrays,
         reward_arrays,
         episode_ends_arrays,
