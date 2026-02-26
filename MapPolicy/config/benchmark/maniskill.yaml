@@ -9,9 +9,8 @@ evaluator_instantiate_config:
   image_size: ${image_size}
   camera_name: ${camera_name}
   obs_mode: pointcloud
-  control_mode: pd_joint_pos
+  control_mode: pd_ee_delta_pos
   num_points: 1024
-  num_envs: ${evaluation.num_envs}
 
 loss_func:
   _target_: MapPolicy.loss.wrap.smart_loss_func

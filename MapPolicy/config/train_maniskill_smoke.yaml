@@ -13,7 +13,7 @@ project_root: /data2/lirui/StructureMap3D
 dataset_dir: ${project_root}/data_new/maniskill/${task_name}_${camera_name}.zarr
 
 dataloader:
-  batch_size: 256
+  batch_size: 128
   num_workers: 0
   shuffle: True
   drop_last: True
@@ -24,19 +24,19 @@ lambda_physical: 1
 
 train:
   clip_grad_value: 1.0
-  learning_rate: 2e-4
+  learning_rate: 3e-4
   num_epochs: 300
   scheduler_instantiate_config:
     _target_: MapPolicy.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
-    num_warmup_epochs: 20
+    num_warmup_epochs: 10
     num_epochs: ${train.num_epochs}
     warmup_factor: 0.01
     eta_min: 1.0e-6
 
 evaluation:
-  num_skip_epochs: 100
+  num_skip_epochs: 10
   validation_frequency_epochs: 5
-  validation_trajs_num: 10
+  validation_trajs_num: 2
   save_best_model: False
 
 wandb:

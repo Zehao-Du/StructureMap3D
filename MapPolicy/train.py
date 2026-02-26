@@ -121,7 +121,8 @@ def main(config):
     )
     train_loader = DataLoaderConstuctor(train_dataset)
     valid_loader = DataLoaderConstuctor(valid_dataset)
-    _, _, _, sample_robot_state, _, sample_action, _ = next(iter(train_loader))
+    # dataset currently returns (pc, pc_no_robot, robot_state, action)
+    sample_pc, sample_pc_nr, sample_robot_state, sample_action = next(iter(train_loader))
     robot_state_dim = sample_robot_state.size(-1)
     action_dim = sample_action.size(-1)
     Logger.log_info(f'Robot state dim: {colored(robot_state_dim, "red")}')
@@ -170,23 +171,19 @@ def main(config):
         epoch_logging_info = {"epoch_step": cur_epoch + 1}
         model.train()
         for cur_iter, (
-            images,
             point_clouds,
             point_cloud_no_robot,
             robot_states,
-            raw_states,
             actions,
-            texts,
         ) in enumerate(train_loader):
             iteration_info = {}
 
             # training iteration
-            images = images.to(config.device)
             point_clouds = point_clouds.to(config.device)
             point_cloud_no_robot = point_cloud_no_robot.to(config.device)
             robot_states = robot_states.to(config.device)
             actions = actions.to(config.device, non_blocking=True)
-            preds = model(images, point_clouds, point_cloud_no_robot, robot_states, texts)
+            preds = model(point_clouds, point_cloud_no_robot, robot_states)
             loss_result = call(config.benchmark.loss_func, preds, actions)
 
             # loss verbose
@@ -241,21 +238,17 @@ def main(config):
             # validation loss
             loss_val = AverageMeter()
             for cur_iter, (
-                images,
                 point_clouds,
                 point_cloud_no_robot,
                 robot_states,
-                raw_states,
                 actions,
-                texts,
             ) in enumerate(valid_loader):
-                images = images.to(config.device)
                 point_clouds = point_clouds.to(config.device)
                 point_cloud_no_robot = point_cloud_no_robot.to(config.device)
                 robot_states = robot_states.to(config.device)
                 actions = actions.to(config.device, non_blocking=True)
                 with torch.no_grad():
-                    preds = model(images, point_clouds, point_cloud_no_robot, robot_states, texts)
+                    preds = model(point_clouds, point_cloud_no_robot, robot_states)
                 loss_result = call(config.benchmark.loss_func, preds, actions)
 
                 if isinstance(loss_result, tuple):
@@ -266,9 +259,9 @@ def main(config):
                 else:
                     loss_val.update(loss_result.item(), actions.shape[0])
 
-            # validation success and rewards
+            # validation success and rewards (record videos for each episode)
             avg_success, avg_rewards = evaluator.evaluate(
-                config.evaluation.validation_trajs_num, model
+                config.evaluation.validation_trajs_num, model, verbose=True
             )
             max_success, max_rewards = max(max_success, avg_success), max(
                 max_rewards, avg_rewards
@@ -281,11 +274,13 @@ def main(config):
                     "validation/rewards": avg_rewards,
                     "validation/max_success": max_success,
                     "validation/max_rewards": max_rewards,
-                    "validation/video_steps": wandb.Video(
-                        evaluator.env.get_frames().transpose(0, 3, 1, 2), fps=30
-                    ),
                 }
             )
+            # log each episode video separately
+            for vid_idx, video_steps in enumerate(getattr(evaluator, "video_steps_list", [])):
+                epoch_logging_info[f"validation/video_steps_{vid_idx}"] = wandb.Video(
+                    video_steps.transpose(0, 3, 1, 2), fps=30
+                )
             evaluator.callback(epoch_logging_info)
             Logger.log_info(
                 f"[validation] epoch={cur_epoch}, "

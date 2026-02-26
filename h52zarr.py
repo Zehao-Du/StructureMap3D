@@ -16,7 +16,7 @@ from MapPolicy.helpers.graphics import PointCloud
 # 兼容原有代码的常量配置
 DEFAULT_COMPRESSOR = zarr.Blosc(cname="zstd", clevel=3, shuffle=1)
 DEFAULT_IMAGE_SHAPE = (512, 512, 3)  # 与你生成代码默认image_size一致
-DEFAULT_POINT_CLOUD_NPOINTS = 16384  # 匹配你H5中点云默认点数16384
+DEFAULT_POINT_CLOUD_NPOINTS = 1024 # 匹配你H5中点云默认点数16384
 DEFAULT_ACTION_DIM = 4  # 匹配你H5中actions的4维动作
 
 def filter_point_cloud_by_segmentation(
@@ -39,8 +39,6 @@ def filter_point_cloud_by_segmentation(
     Returns:
         filtered_pc: 过滤并采样后的点云，shape=(num_points, 6)，float32
     """
-    print(f"🔍 原始点云shape: {point_cloud.shape}, seg_ids shape: {seg_ids.shape}")
-    print(f"🔍 需要剔除的分割ID: {remove_seg_ids}")
     seg_ids = seg_ids.reshape(-1)
     # 1. 初始化基础掩码：全部保留
     keep_mask = np.ones(seg_ids.shape[0], dtype=bool)
@@ -108,7 +106,7 @@ def extract_traj_data(traj_group, camera_name: str = "base_camera"):
     point_cloud_no_robot = _filter_seq(
         point_clouds,
         segs,
-        remove_ids={1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
+        remove_ids={1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
     )
     
     extra = obs_group["extra"]
@@ -167,6 +165,17 @@ def h52zarr_single(h5_path: str, zarr_save_dir: str, camera_name: str = "base_ca
             traj_group = f[traj_key]
             # 提取单轨迹数据
             traj_data = extract_traj_data(traj_group, camera_name)
+            # 打印每条轨迹的尺寸信息
+            steps = traj_data["actions"].shape[0]
+            pc_shape = traj_data["point_clouds"].shape
+            pc_nr_shape = traj_data["point_clouds_no_robot"].shape
+            rs_shape = traj_data["robot_states"].shape
+            act_shape = traj_data["actions"].shape
+            cprint(
+                f"  {traj_key}: steps={steps}, pc={pc_shape}, pc_no_robot={pc_nr_shape},"
+                f" state={rs_shape}, action={act_shape}",
+                "green",
+            )
             # 数据校验
             # 追加到全局容器
             for k in all_data.keys():
@@ -253,11 +262,11 @@ def h52zarr_single(h5_path: str, zarr_save_dir: str, camera_name: str = "base_ca
         pc_no = all_data["point_clouds_no_robot"][start]
         ply_path1 = ply_dir / f"episode_{ep_idx:03d}_first_with_robot.ply"
         ply_path2 = ply_dir / f"episode_{ep_idx:03d}_first_no_robot.ply"
-        _save_point_cloud_ply(pc_with, ply_path1)
-        _save_point_cloud_ply(pc_no, ply_path2)
+        # _save_point_cloud_ply(pc_with, ply_path1)
+        # _save_point_cloud_ply(pc_no, ply_path2)
     cprint(f"✅ 转换完成！Zarr文件结构：", "green")
     print(zarr_root.tree())
-    cprint(f"📁 第一帧点云PLY已保存到：{ply_dir}", "green")
+    # cprint(f"📁 第一帧点云PLY已保存到：{ply_dir}", "green")
     return zarr_path
 
 

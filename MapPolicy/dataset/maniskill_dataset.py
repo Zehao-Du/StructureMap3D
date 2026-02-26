@@ -42,37 +42,32 @@ class ManiskillDataset(torch.utils.data.Dataset):
             )
         )
 
-        # (T, H, W, C) -> (T, C, H, W)
-        self._images = zarr_root["data"]["images"][begin_index:end_index].transpose(
-            0, 3, 1, 2
-        )
-        # Logger.log_notice(f'images shape: {self._images.shape}')
-        assert self._images.shape[1] == 3
         self._point_clouds = zarr_root["data"]["point_clouds"][begin_index:end_index]
         self._point_clouds_no_robot = zarr_root["data"]["point_clouds_no_robot"][begin_index:end_index]
         self._robot_states = zarr_root["data"]["robot_states"][begin_index:end_index]
         self._actions = zarr_root["data"]["actions"][begin_index:end_index]
-        self._texts = zarr_root["data"]["texts"][begin_index:end_index]
-        assert len(self._images) == len(self._robot_states) == len(self._actions)
         self._dataset_size = len(self._actions)
 
+        # report split sizes for debugging
+        train_steps = int(self._episode_ends[self.SPLIT_SIZE["train"] - 1])
+        val_steps = int(
+            self._episode_ends[self.SPLIT_SIZE["train"] + self.SPLIT_SIZE["validation"] - 1]
+            - train_steps
+        )
+        Logger.log_info(f"train steps: {train_steps}, validation steps: {val_steps}")
+
     def __getitem__(self, idx):
-        image = torch.from_numpy(self._images[idx]).float()
         point_cloud = torch.from_numpy(self._point_clouds[idx]).float()
         point_cloud_no_robot = torch.from_numpy(self._point_clouds_no_robot[idx]).float()
         robot_state = torch.from_numpy(self._robot_states[idx]).float()
         action = torch.from_numpy(self._actions[idx]).float()
-        text = self._texts[idx]
-        return image, point_cloud, point_cloud_no_robot, robot_state, torch.zeros((0,)), action, text
+        return point_cloud, point_cloud_no_robot, robot_state, action
 
     def __len__(self):
         return self._dataset_size
 
     def print_info(self):
         Logger.log_info(f"Maniskill Dataset Info:")
-        Logger.log_info(
-            f'images ({colored(self._images.dtype, "red")}): {colored(self._images.shape, "red")}, range: [{colored(self._images.min(), "red")}, {colored(self._images.max(), "red")}]'
-        )
         Logger.log_info(
             f'point_cloud ({colored(self._point_clouds.dtype, "red")}): {colored(self._point_clouds.shape, "red")}, '
             f'xyz_range: [{colored(self._point_clouds[..., 0:3].min(), "red")}, {colored(self._point_clouds[..., 0:3].max(), "red")}], '
@@ -104,4 +99,5 @@ if __name__ == "__main__":
     Logger.log_info(dataset._episode_ends[dataset.SPLIT_SIZE["train"] + dataset.SPLIT_SIZE["validation"] - 1])
     Logger.log_info(len(dataset))
     Logger.log_notice(f"episode_ends: {dataset._episode_ends}")
-    Logger.log_notice(f"texts: {dataset._texts}")
+    if dataset._texts is not None:
+        Logger.log_notice(f"texts: {dataset._texts}")

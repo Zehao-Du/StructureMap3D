@@ -202,7 +202,7 @@ class SingleFrame_GNN(Actor):
             init_method=policy_head_init_method,
         )
         self.loss_map_construction = loss_map_construction
-    def forward(self, images, point_clouds, point_cloud_no_robot, robot_states, texts):
+    def forward(self, point_clouds, point_cloud_no_robot, robot_states):
         # * Notice: normalize the input point cloud
         point_clouds = PointCloud.normalize(point_clouds)
         point_cloud_no_robot = PointCloud.normalize(point_cloud_no_robot)
@@ -265,7 +265,7 @@ class SingleFrame_Lift3d_GNN(Actor):
             init_method=policy_head_init_method,
         )
         self.loss_map_construction = loss_map_construction
-    def forward(self, images, point_clouds, point_cloud_no_robot, robot_states, texts):
+    def forward(self, point_clouds, point_cloud_no_robot, robot_states):
         # * Notice: normalize the input point cloud
         point_clouds = PointCloud.normalize(point_clouds)
         point_cloud_no_robot = PointCloud.normalize(point_cloud_no_robot)
