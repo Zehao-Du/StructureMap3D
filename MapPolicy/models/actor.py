@@ -98,7 +98,7 @@ class SingleFrame_MLP(Actor):
             output_dim=action_dim,
             init_method=policy_head_init_method,
         )
-    def forward(self, images, point_clouds, point_cloud_no_robot, robot_states, texts):
+    def forward(self, point_clouds, point_cloud_no_robot, robot_states):
         # * Notice: normalize the input point cloud
         point_clouds = PointCloud.normalize(point_clouds)
         

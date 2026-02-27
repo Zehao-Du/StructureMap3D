@@ -4,6 +4,7 @@ import os
 import sys
 import warnings
 from typing import Any, Optional
+import hydra
 
 # 兼容直接脚本运行：
 # python MapPolicy/envs/maniskill_wrapper_env.py
@@ -24,6 +25,7 @@ import mani_skill.envs
 from mani_skill.utils.structs import Actor, Link
 
 from MapPolicy.helpers.Logger import Logger
+import pathlib
 
 from MapPolicy.envs.evaluator import Evaluator
 from MapPolicy.helpers.gymnasium import VideoWrapper
@@ -231,7 +233,7 @@ class ManiSkillEnv(gymnasium.Env):
                     table_workspace_ids.add(obj_id)
         return link_ids, ground_ids, table_workspace_ids
 
-    def get_point_cloud(self, filter_table_workspace: bool = True) -> np.ndarray:
+    def get_point_cloud(self, filter_table_workspace: bool = False) -> np.ndarray:
         """返回采样后的点云 (num_points, 6)，字段为 xyzrgb。"""
         point_cloud, valid_mask, pc_src = self._build_full_point_cloud_and_mask()
         seg = self._to_numpy(pc_src["segmentation"]).reshape(-1)
@@ -426,7 +428,7 @@ class ManiSkillEvaluator(Evaluator):
                 obs_dict, reward, terminated, truncated, info = self.env.step(action)
                 rewards += float(reward)
                 success = success or Wrapper.get_wrapper_attr(self.env, "_extract_success")(info)
-
+                
             # log action distribution of this episode for debugging
             if len(ep_actions) > 0:
                 arr = np.stack(ep_actions, axis=0)

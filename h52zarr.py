@@ -262,8 +262,8 @@ def h52zarr_single(h5_path: str, zarr_save_dir: str, camera_name: str = "base_ca
         pc_no = all_data["point_clouds_no_robot"][start]
         ply_path1 = ply_dir / f"episode_{ep_idx:03d}_first_with_robot.ply"
         ply_path2 = ply_dir / f"episode_{ep_idx:03d}_first_no_robot.ply"
-        # _save_point_cloud_ply(pc_with, ply_path1)
-        # _save_point_cloud_ply(pc_no, ply_path2)
+        _save_point_cloud_ply(pc_with, ply_path1)
+        _save_point_cloud_ply(pc_no, ply_path2)
     cprint(f"✅ 转换完成！Zarr文件结构：", "green")
     print(zarr_root.tree())
     # cprint(f"📁 第一帧点云PLY已保存到：{ply_dir}", "green")

@@ -9,10 +9,14 @@ evaluator_instantiate_config:
   image_size: ${image_size}
   camera_name: ${camera_name}
   obs_mode: pointcloud
-  control_mode: pd_ee_delta_pos
+  control_mode: pd_ee_delta_pose
   num_points: 1024
 
 loss_func:
   _target_: MapPolicy.loss.wrap.smart_loss_func
   lambda_map: ${lambda_map}
   lambda_physical: ${lambda_physical}
+  # # weights for main action components (default 1.0 each)
+  # lambda_pos: 100.0
+  # lambda_rot: 90.0
+  # lambda_gripper: 1.0

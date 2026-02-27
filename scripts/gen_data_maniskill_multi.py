@@ -352,27 +352,27 @@ def main(args):
             process_bar.update(1)
 
         # save visualized data (first frame + full video)
-        sample_video_array = np.stack(img_arrays_sub, axis=0)
-        save_video_imageio(
-            sample_video_array,
-            video_dir / f"episode_{episode_idx}.mp4",
-            quiet=args.quiet,
-        )
-        save_rgb_image(
-            img_arrays_sub[0],
-            image_dir / f"episode_{episode_idx}_rgb.png",
-            quiet=args.quiet,
-        )
-        save_point_cloud_ply(
-            point_cloud_arrays_sub[0],
-            point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
-            quiet=args.quiet,
-        )
-        save_point_cloud_ply(
-            point_cloud_no_robot_arrays_sub[0],
-            point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
-            quiet=args.quiet,
-        )
+        # sample_video_array = np.stack(img_arrays_sub, axis=0)
+        # save_video_imageio(
+        #     sample_video_array,
+        #     video_dir / f"episode_{episode_idx}.mp4",
+        #     quiet=args.quiet,
+        # )
+        # save_rgb_image(
+        #     img_arrays_sub[0],
+        #     image_dir / f"episode_{episode_idx}_rgb.png",
+        #     quiet=args.quiet,
+        # )
+        # save_point_cloud_ply(
+        #     point_cloud_arrays_sub[0],
+        #     point_cloud_dir / f"episode_{episode_idx}_point_cloud.ply",
+        #     quiet=args.quiet,
+        # )
+        # save_point_cloud_ply(
+        #     point_cloud_no_robot_arrays_sub[0],
+        #     point_cloud_no_robot_dir / f"episode_{episode_idx}_no_robot.ply",
+        #     quiet=args.quiet,
+        # )
 
         episode_ends_arrays.append(copy.deepcopy(total_count))
         img_arrays.extend(copy.deepcopy(img_arrays_sub))
@@ -545,13 +545,13 @@ if __name__ == "__main__":
         pass
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=str, default="PickCube-v1")
+    parser.add_argument("--task-id", type=str, default="StackCube-v1")
     parser.add_argument("--camera-name", type=str, default="base_camera")
     parser.add_argument("--image-size", type=int, default=128)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")
     parser.add_argument("--control-mode", type=str, default="pd_joint_pos")
     parser.add_argument("--num-points", type=int, default=1024)
-    parser.add_argument("--num-episodes", type=int, default=6)
+    parser.add_argument("--num-episodes", type=int, default=1000)
     parser.add_argument("--episode-length", type=int, default=200)
     parser.add_argument(
         "--save-dir",
@@ -567,7 +567,7 @@ if __name__ == "__main__":
     parser.add_argument("--min-success-steps", type=int, default=5)
     parser.add_argument("--max-consecutive-failures", type=int, default=5)
     parser.add_argument("--quiet", action="store_true")
-    parser.add_argument("--num-procs", type=int, default=2,
+    parser.add_argument("--num-procs", type=int, default=20,
                         help="number of parallel worker processes")
 
     args = parser.parse_args()

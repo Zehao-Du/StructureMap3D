@@ -218,7 +218,6 @@ def main(args):
     point_cloud_arrays = []
     point_cloud_no_robot_arrays = []
     robot_state_arrays = []
-    raw_state_arrays = []
     action_arrays = []
     reward_arrays = []
     episode_ends_arrays = []
@@ -508,13 +507,13 @@ if __name__ == "__main__":
     os.environ.setdefault("SAPIEN_RENDER_SYSTEM", "egl")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=str, default="PickCube-v1")
+    parser.add_argument("--task-id", type=str, default="StackCube-v1")
     parser.add_argument("--camera-name", type=str, default="base_camera")
     parser.add_argument("--image-size", type=int, default=512)
     parser.add_argument("--obs-mode", type=str, default="pointcloud")
     parser.add_argument("--control-mode", type=str, default="pd_joint_pos")
     parser.add_argument("--num-points", type=int, default=1024)
-    parser.add_argument("--num-episodes", type=int, default=3)
+    parser.add_argument("--num-episodes", type=int, default=100)
     parser.add_argument("--episode-length", type=int, default=200)
     parser.add_argument(
         "--save-dir",

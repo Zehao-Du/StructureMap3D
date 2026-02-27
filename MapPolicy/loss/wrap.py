@@ -1,74 +1,71 @@
 import torch
 
-# def smart_loss_func(preds, actions):
-#     """
-#     preds: 可能是 Tensor (action), 
-#            也可能是 Tuple (action, aux_loss1, aux_loss2)
-#            也可能是 Dict {"action": ..., "aux_loss": ...}
-#     """
-#     # 情况 A: 模型返回的是 Tuple (action, loss1, loss2...)
-#     if isinstance(preds, (tuple, list)):
-#         pred_action = preds[0]
-#         # 计算主任务 Loss (比如 MSE)
-#         main_loss = torch.nn.functional.mse_loss(pred_action, actions)
-        
-#         # 提取模型内部传出来的辅助 Loss (假设模型已经计算好了)
-#         aux_loss_1 = preds[1]
-#         aux_loss_2 = preds[2] if len(preds) > 2 else 0.0
-        
-#         total_loss = main_loss + aux_loss_1 + aux_loss_2
-        
-#         return total_loss, {
-#             "total_loss": total_loss.item(),
-#             "main_loss": main_loss.item(),
-#             "aux_loss_1": aux_loss_1.item() if torch.is_tensor(aux_loss_1) else aux_loss_1,
-#             "aux_loss_2": aux_loss_2.item() if torch.is_tensor(aux_loss_2) else aux_loss_2,
-#         }
+# original smart_loss_func rewritten to support weighted pos/rot/gripper components
 
-#     # 情况 B: 模型只返回了单一 Action Tensor
-#     else:
-#         main_loss = torch.nn.functional.mse_loss(preds, actions)
-#         return main_loss
-    
-def smart_loss_func(preds, actions, lambda_map=1.0, lambda_physical=1.0):
+def smart_loss_func(
+    preds,
+    actions,
+    lambda_map=1.0,
+    lambda_physical=1.0,
+    lambda_pos=100.0,
+    lambda_rot=90.0,
+    lambda_gripper=1.0,
+):
     """
     preds: 可能是 Tensor (action), 
            也可能是 Tuple (action, aux_loss_map, aux_loss_2)
            也可能是 Dict {"action": ..., "map_loss": ..., "aux_loss": ...}
-    lambda_map: 地图重构损失的权重 (对应你脚本中的 lambda_map)
-    lambda_aux2: 第二个辅助损失的权重
+
+    主动作假设为 7 维：
+      - 0-2 维 position    (MSE)
+      - 3-5 维 rotation    (MSE)
+      - 6 维 gripper 开合 (-1/1)，使用二分类交叉熵
+
+    lambda_map: 地图重构损失的权重
+    lambda_physical: 第二个辅助损失的权重
+    lambda_pos, lambda_rot, lambda_gripper: 主动作三部分的权重
     """
-    
-    # 1. 统一提取：将不同格式的 preds 转换为标准的变量
+
+    # 统一提取预测和辅助loss
     if isinstance(preds, dict):
-        pred_action = preds["action"]
-        # 使用 .get() 防止键不存在时报错
+        pred_action = preds.get("action")
         aux_loss_1 = preds.get("map_loss", torch.tensor(0.0, device=pred_action.device))
         aux_loss_2 = preds.get("aux_loss", torch.tensor(0.0, device=pred_action.device))
-    
     elif isinstance(preds, (tuple, list)):
         pred_action = preds[0]
         aux_loss_1 = preds[1] if len(preds) > 1 else torch.tensor(0.0, device=pred_action.device)
         aux_loss_2 = preds[2] if len(preds) > 2 else torch.tensor(0.0, device=pred_action.device)
-    
-    else:  # 情况 B: 只有单一 Tensor
+    else:
         pred_action = preds
         aux_loss_1 = torch.tensor(0.0, device=pred_action.device)
         aux_loss_2 = torch.tensor(0.0, device=pred_action.device)
 
-    # 2. 计算各部分损失
-    # 计算主任务 Loss (Action MSE)
-    main_loss = torch.nn.functional.mse_loss(pred_action, actions)
-    
-    # 3. 应用权重并加总
-    # 总损失 = Action损失 + lambda_map * 地图损失 + lambda_aux2 * 其他辅助损失
+    # 主动作loss decomposed
+    pos_loss = torch.nn.functional.mse_loss(pred_action[..., 0:3], actions[..., 0:3])
+    rot_loss = torch.nn.functional.mse_loss(pred_action[..., 3:6], actions[..., 3:6])
+    grip_pred = pred_action[..., 6:7]  # shape (B, 1)
+    grip_bin = (actions[..., 6:7] > 0).float()
+    grip_loss = torch.nn.functional.binary_cross_entropy_with_logits(grip_pred, grip_bin)
+
+    main_loss = (
+        lambda_pos * pos_loss
+        + lambda_rot * rot_loss
+        + lambda_gripper * grip_loss
+    )
+
     total_loss = main_loss + (lambda_map * aux_loss_1) + (lambda_physical * aux_loss_2)
 
-    # 4. 返回总损失和用于 Wandb 记录的标量字典
     return total_loss, {
         "loss/total": total_loss.item(),
         "loss/main_action": main_loss.item(),
+        "loss/pos": pos_loss.item(),
+        "loss/rot": rot_loss.item(),
+        "loss/gripper": grip_loss.item(),
         "loss/aux_map_raw": aux_loss_1.item() if torch.is_tensor(aux_loss_1) else aux_loss_1,
         "loss/aux_physical_raw": aux_loss_2.item() if torch.is_tensor(aux_loss_2) else aux_loss_2,
-        "lambda/map": lambda_map
+        "lambda/map": lambda_map,
+        "lambda/pos": lambda_pos,
+        "lambda/rot": lambda_rot,
+        "lambda/gripper": lambda_gripper,
     }
+

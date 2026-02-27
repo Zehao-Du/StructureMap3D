@@ -1,5 +1,5 @@
 defaults:
-  - agent: Map_MLP
+  - agent: Map_GNN
   - benchmark: maniskill
 
 seed: 0
@@ -24,11 +24,11 @@ lambda_physical: 1
 
 train:
   clip_grad_value: 1.0
-  learning_rate: 3e-4
-  num_epochs: 100
+  learning_rate: 1e-4
+  num_epochs: 300
   scheduler_instantiate_config:
     _target_: MapPolicy.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
-    num_warmup_epochs: 5
+    num_warmup_epochs: 10
     num_epochs: ${train.num_epochs}
     warmup_factor: 0.01
     eta_min: 1.0e-6
@@ -36,12 +36,8 @@ train:
 evaluation:
   num_skip_epochs: 15
   validation_frequency_epochs: 5
-  validation_trajs_num: 10
+  validation_trajs_num: 3
   save_best_model: True
-  # number of parallel environments used during evaluation; set >1 to
-  # batch several episodes together and speed up eval (requires evaluator
-  # implementation that supports num_envs, which is available).
-  num_envs: 10
 
 wandb:
   project: MapPolicy

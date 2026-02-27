@@ -183,6 +183,7 @@ def main(config):
             point_cloud_no_robot = point_cloud_no_robot.to(config.device)
             robot_states = robot_states.to(config.device)
             actions = actions.to(config.device, non_blocking=True)
+            
             preds = model(point_clouds, point_cloud_no_robot, robot_states)
             loss_result = call(config.benchmark.loss_func, preds, actions)
 
