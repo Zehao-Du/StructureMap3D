@@ -7,8 +7,8 @@ def smart_loss_func(
     actions,
     lambda_map=1.0,
     lambda_physical=1.0,
-    lambda_pos=100.0,
-    lambda_rot=90.0,
+    lambda_pos=80.0,
+    lambda_rot=40.0,
     lambda_gripper=1.0,
 ):
     """

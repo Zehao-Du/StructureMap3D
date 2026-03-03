@@ -228,15 +228,20 @@ def main(config):
         epoch_logging_info.update({"train_epoch/epoch_loss": loss_train.avg})
         Logger.log_info(f"[train] epoch={cur_epoch}, loss={loss_train.avg}")
 
-        # Validation
+        # Validation scheduling
         periodic_validation = (cur_epoch + 1 > config.evaluation.num_skip_epochs) and (
             (cur_epoch + 1) % config.evaluation.validation_frequency_epochs == 0
         )
         last_epoch = (cur_epoch + 1) == config.train.num_epochs
-        if periodic_validation or last_epoch:
-            model.eval()
+        # compute loss every two epochs (or on last one)
+        compute_loss_only = ((cur_epoch + 1) % 2 == 0) or last_epoch
+        # full evaluation follows the original schedule
+        full_evaluation = periodic_validation or last_epoch
 
-            # validation loss
+        loss_val = None
+        if compute_loss_only or full_evaluation:
+            # run through validation set to get loss
+            model.eval()
             loss_val = AverageMeter()
             for cur_iter, (
                 point_clouds,
@@ -256,10 +261,19 @@ def main(config):
                     loss_val.update(loss_result[0].item(), actions.shape[0])
                     loss_dict = loss_result[1]
                     for key, value in loss_dict.items():
-                        epoch_logging_info[f"validation/{key}"] = value
+                        # only log auxiliary loss terms when doing full evaluation
+                        if full_evaluation:
+                            epoch_logging_info[f"validation/{key}"] = value
                 else:
                     loss_val.update(loss_result.item(), actions.shape[0])
 
+        # if we only computed loss (no full eval), log it and continue
+        if compute_loss_only and not full_evaluation:
+            epoch_logging_info["validation/loss"] = loss_val.avg
+            Logger.log_info(f"[validation-loss] epoch={cur_epoch}, loss={loss_val.avg}")
+        
+        # full evaluation block remains as before
+        if full_evaluation:
             # validation success and rewards (record videos for each episode)
             avg_success, avg_rewards = evaluator.evaluate(
                 config.evaluation.validation_trajs_num, model, verbose=True
@@ -270,7 +284,8 @@ def main(config):
             epoch_logging_info.update(
                 {
                     "validation/epoch": cur_epoch,
-                    "validation/loss": loss_val.avg,
+                    # loss_val is guaranteed to exist here
+                    "validation/loss": loss_val.avg if loss_val is not None else float('nan'),
                     "validation/success": avg_success,
                     "validation/rewards": avg_rewards,
                     "validation/max_success": max_success,

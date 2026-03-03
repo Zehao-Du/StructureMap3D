@@ -1,5 +1,5 @@
 defaults:
-  - agent: Map_GNN
+  - agent: Map_MLP
   - benchmark: maniskill
 
 seed: 0
@@ -24,7 +24,7 @@ lambda_physical: 1
 
 train:
   clip_grad_value: 1.0
-  learning_rate: 3e-4
+  learning_rate: 2e-4
   num_epochs: 300
   scheduler_instantiate_config:
     _target_: MapPolicy.helpers.pytorch.Optimizers.get_warmup_cosine_annealing_scheduler
@@ -36,7 +36,7 @@ train:
 evaluation:
   num_skip_epochs: 10
   validation_frequency_epochs: 5
-  validation_trajs_num: 2
+  validation_trajs_num: 5
   save_best_model: False
 
 wandb:

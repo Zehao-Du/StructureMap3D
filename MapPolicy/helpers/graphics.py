@@ -4,6 +4,7 @@ import open3d as o3d
 import pytorch3d.ops as torch3d_ops
 import torch
 from scipy.spatial.transform import Rotation
+from termcolor import cprint
 
 
 class BasePose(object):
@@ -242,12 +243,28 @@ class PointCloud(object):
 
     @staticmethod
     def point_cloud_sampling(
-        point_cloud: np.ndarray, num_points: int, method: str = "fps"
+        point_cloud: np.ndarray,
+        num_points: int,
+        method: str = "fps",
+        xy_bounds: tuple[float, float, float, float] | None = None,
     ):
         """
         support different point cloud sampling methods
         point_cloud: (N, 6), xyz+rgb or (N, 3), xyz
+        xy_bounds: optional (xmin, xmax, ymin, ymax) to restrict sampling to points
+            whose x,y coordinates fall within the rectangle. Default None means no
+            restriction.
         """
+        # optionally restrict to xy rectangle
+        if xy_bounds is not None and point_cloud.shape[0] > 0:
+            xmin, xmax, ymin, ymax = xy_bounds
+            mask = (
+                (point_cloud[:, 0] >= xmin)
+                & (point_cloud[:, 0] <= xmax)
+                & (point_cloud[:, 1] >= ymin)
+                & (point_cloud[:, 1] <= ymax)
+            )
+            point_cloud = point_cloud[mask]
         if num_points == "all":  # use all points
             return point_cloud
 

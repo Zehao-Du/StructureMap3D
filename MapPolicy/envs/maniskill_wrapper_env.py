@@ -245,7 +245,7 @@ class ManiSkillEnv(gymnasium.Env):
 
         keep_mask = (~np.isin(seg, np.array(list(remove_ids), dtype=seg.dtype))) & valid_mask
         point_cloud = PointCloud.point_cloud_sampling(
-            point_cloud[keep_mask], self.num_points, self.point_sample_method
+            point_cloud[keep_mask], self.num_points, self.point_sample_method, xy_bounds=(-0.3, 0.3, -0.3, 0.3)
         )
         return point_cloud.astype(np.float32)
 
@@ -261,7 +261,7 @@ class ManiSkillEnv(gymnasium.Env):
 
         keep_mask = (~np.isin(seg, np.array(list(remove_ids), dtype=seg.dtype))) & valid_mask
         point_cloud = PointCloud.point_cloud_sampling(
-            full[keep_mask], self.num_points, self.point_sample_method
+            full[keep_mask], self.num_points, self.point_sample_method, xy_bounds=(-0.3, 0.3, -0.3, 0.3)
         )
         return point_cloud.astype(np.float32)
 
@@ -521,7 +521,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_id", type=str, default="PlugCharger-v1")
     parser.add_argument("--camera_name", type=str, default="base_camera")
     parser.add_argument("--image_size", type=int, default=480)
-    parser.add_argument("--num_points", type=int, default=4096)
+    parser.add_argument("--num_points", type=int, default=1024)
     parser.add_argument("--obs_mode", type=str, default="pointcloud")
     parser.add_argument("--save_dir", type=str, default="data2/lirui/maniskill_debug")
     parser.add_argument(
@@ -549,7 +549,7 @@ if __name__ == "__main__":
             image_size=args.image_size,
             camera_name=args.camera_name,
             obs_mode=args.obs_mode,
-            control_mode="pd_joint_pos",
+            control_mode="pd_ee_delta_pose",
             num_points=args.num_points,
             point_sample_method="fps",
             render_mode="rgb_array",
