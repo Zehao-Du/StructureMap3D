@@ -50,9 +50,10 @@ def filter_point_cloud_by_segmentation(
     
     # 4. 过滤点云
     filtered_pc = point_cloud[keep_mask]
+
     # 5. 点云采样到固定点数
     filtered_pc = PointCloud.point_cloud_sampling(
-        filtered_pc, num_points, sample_method
+        filtered_pc, num_points, sample_method, xy_bounds=(-0.3, 0.3, -0.3, 0.3)
     )
     
     return filtered_pc.astype(np.float32)
